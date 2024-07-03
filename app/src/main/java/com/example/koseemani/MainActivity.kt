@@ -3,10 +3,16 @@ package com.example.koseemani
 import android.annotation.SuppressLint
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Home
@@ -33,6 +39,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
@@ -50,7 +57,14 @@ import com.example.koseemani.ui.home.HomeScreen
 import com.example.koseemani.ui.theme.KoseemaniTheme
 
 class MainActivity : ComponentActivity() {
+
     override fun onCreate(savedInstanceState: Bundle?) {
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.light(
+                android.graphics.Color.TRANSPARENT,
+                android.graphics.Color.TRANSPARENT,
+            )
+        )
         super.onCreate(savedInstanceState)
         setContent {
             KoseemaniApp()
@@ -66,14 +80,23 @@ fun KoseemaniApp() {
     KoseemaniTheme {
         // A surface container using the 'background' color from the theme
         Surface(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize()
+                .safeDrawingPadding()
+                .statusBarsPadding()
+            ,
             color = MaterialTheme.colorScheme.background
         ) {
             val navController = rememberNavController()
             Scaffold(bottomBar = { BottomNavigationBar(navController = navController) }) {
 
                 NavHost(navController = navController, startDestination = Home) {
-                    composable<Home> { HomeScreen() }
+                    composable<Home> {
+                        HomeScreen(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .fillMaxHeight()
+                        )
+                    }
                     composable<History> {
                         Box(contentAlignment = Alignment.Center) {
                             Text("History")
@@ -132,7 +155,7 @@ fun BottomNavigationBar(
             route = Settings
         ),
     )
-    NavigationBar(containerColor = MaterialTheme.colorScheme.surface ) {
+    NavigationBar(containerColor = Color.Transparent) {
         bottomNavItems.forEachIndexed { index, bottomNavItem ->
 
             NavigationBarItem(
