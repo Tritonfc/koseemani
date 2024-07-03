@@ -80,6 +80,7 @@ fun HomeScreen(modifier: Modifier = Modifier) {
             alignment = Alignment.Center,
             modifier = Modifier
                 .align(alignment = Alignment.CenterHorizontally)
+                .size(160.dp)
 
                 .fillMaxWidth(),
 
