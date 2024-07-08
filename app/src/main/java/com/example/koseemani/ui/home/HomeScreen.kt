@@ -1,5 +1,8 @@
 package com.example.koseemani.ui.home
 
+import android.Manifest
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -27,6 +30,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -42,10 +46,34 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.remember
+import androidx.navigation.ActivityNavigatorExtras
 import com.example.koseemani.R
+import com.example.koseemani.utils.SMSManager
+import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.isGranted
+import com.google.accompanist.permissions.rememberPermissionState
+import com.google.accompanist.permissions.shouldShowRationale
 
+@OptIn(ExperimentalPermissionsApi::class)
 @Composable
 fun HomeScreen(modifier: Modifier = Modifier) {
+    val smsPermissionState = rememberPermissionState(Manifest.permission.SEND_SMS)
+    val requestPermissionLauncher = rememberLauncherForActivityResult(contract = ActivityResultContracts.RequestPermission(), onResult = {isGranted->
+        if(isGranted){
+            SMSManager.sendSOSMessage("SOS, I am in danger", "08102309062")
+
+        }else{
+
+
+        }
+
+    })
+
+
+
+
+
     val safetyList = listOf<SafetyInsightItem>(
         SafetyInsightItem(
             title = "Stay vigilant",
@@ -81,10 +109,16 @@ fun HomeScreen(modifier: Modifier = Modifier) {
             modifier = Modifier
                 .align(alignment = Alignment.CenterHorizontally)
                 .size(160.dp)
+                .clickable(onClick = {
+                    requestPermissionLauncher.launch(Manifest.permission.SEND_SMS)
+                }
+                )
+
 
                 .fillMaxWidth(),
 
             )
+
         Spacer(modifier = Modifier.height(16.dp))
 
         SafetyRowLabel()
@@ -235,6 +269,12 @@ fun HomeScreenPreview() {
             .fillMaxHeight()
     )
 }
+
+@OptIn(ExperimentalPermissionsApi::class)
+fun sendSms(){
+
+}
+
 
 data class SafetyInsightItem(
     val title: String,
