@@ -71,6 +71,8 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     implementation("com.google.accompanist:accompanist-permissions:0.35.1-alpha")
 
+    implementation ("com.google.android.gms:play-services-location:21.3.0")
+
     implementation("androidx.navigation:navigation-runtime-ktx:2.7.7")
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")

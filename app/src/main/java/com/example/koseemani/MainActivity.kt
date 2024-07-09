@@ -28,11 +28,15 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -40,6 +44,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.navigation.NavController
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -75,22 +80,29 @@ fun KoseemaniApp() {
     KoseemaniTheme {
         // A surface container using the 'background' color from the theme
         Surface(
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier
+                .fillMaxSize()
                 .safeDrawingPadding()
-                .statusBarsPadding()
-            ,
+                .statusBarsPadding(),
             color = MaterialTheme.colorScheme.background
         ) {
             val navController = rememberNavController()
-            Scaffold(bottomBar = { BottomNavigationBar(navController = navController) }) {
+
+            val snackbarHostState = remember { SnackbarHostState() }
+            Scaffold(
+                bottomBar = { BottomNavigationBar(navController = navController) },
+                snackbarHost = { SnackbarHost(hostState = snackbarHostState) }) {
 
                 NavHost(navController = navController, startDestination = Home) {
                     composable<Home> {
                         HomeScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .fillMaxHeight()
+                                .fillMaxHeight(),
+                            snackbarHostState
+
                         )
+
                     }
                     composable<History> {
                         Box(contentAlignment = Alignment.Center) {
@@ -157,9 +169,18 @@ fun BottomNavigationBar(
                 label = { Text(text = bottomNavItem.title) },
                 selected = index == selectedIndex,
                 onClick = {
-                    navController.navigate(bottomNavItem.route)
+                    navController.navigate(bottomNavItem.route){
+                        popUpTo(navController.graph.findStartDestination().id) {
+                            saveState = true
+                        }
+
+                        launchSingleTop = true
+
+                        restoreState = true
+                    }
 
                     selectedIndex = index
+
                 },
                 icon = {
                     Icon(
