@@ -68,6 +68,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.app.ActivityCompat
@@ -101,19 +102,25 @@ fun HomeScreen(
     var isPermitted by remember {
         mutableStateOf(false)
     }
+    var currLocation by rememberSaveable {
+        mutableStateOf("")
+    }
     val smsPermissionState = rememberPermissionState(Manifest.permission.SEND_SMS)
     val locationPermissionState = rememberMultiplePermissionsState(
         permissions = listOf(
             Manifest.permission.ACCESS_COARSE_LOCATION,
             Manifest.permission.ACCESS_FINE_LOCATION,
-            Manifest.permission.SEND_SMS
+
         )
     )
     val requestPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
         onResult = { isGranted ->
             if (isGranted) {
-                SMSManager.sendSOSMessage("SOS, I am in danger", "08102309062")
+                SMSManager.sendSOSMessage(
+                    "SOS, I am in danger. I am currently located at $currLocation",
+                    "08102309062"
+                )
 
             } else {
 
@@ -121,11 +128,11 @@ fun HomeScreen(
             }
 
         })
-   val locationPermissionLauncher = rememberLauncherForActivityResult(
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
         when {
-         permissions.getOrDefault(Manifest.permission.ACCESS_FINE_LOCATION, false) -> {
+            permissions.getOrDefault(Manifest.permission.ACCESS_FINE_LOCATION, false) -> {
                 isPermitted = true
 //                requestPermissionLauncher.launch(Manifest.permission.SEND_SMS)
 //                smsPermissionState.launchPermissionRequest()
@@ -133,24 +140,14 @@ fun HomeScreen(
 
             permissions.getOrDefault(Manifest.permission.ACCESS_COARSE_LOCATION, false) -> {
                 // Only approximate location access granted.
+                isPermitted = true
             }
 
-            permissions.getOrDefault(Manifest.permission.SEND_SMS, defaultValue = false) -> {
-                SMSManager.sendSOSMessage("SOS, I am in danger", "08102309062")
-            }
+
         }
     }
 
-//  checkLocationPermission(locationPermissionState)
 
-//    locationPermissionRequest.launch(arrayOf(
-//        Manifest.permission.ACCESS_FINE_LOCATION,
-//        Manifest.permission.ACCESS_COARSE_LOCATION))
-//    handleLocationPermissions(locationPermissionState) {
-//        snackbarImpl(it, scope, snackbarHostState){
-//            locationPermissionState.launchMultiplePermissionRequest()
-//        }
-//    }
 
 
     val safetyList = listOf<SafetyInsightItem>(
@@ -182,18 +179,23 @@ fun HomeScreen(
                 context,
                 Manifest.permission.ACCESS_FINE_LOCATION
             ) -> {
-                CurrentLocationField(locationPermissionsState = locationPermissionState)
+                CurrentLocationField(locationPermissionsState = locationPermissionState) {
+                    currLocation = it
+                }
             }
+
             else -> {
                 // You can directly ask for the permission.
                 // The registered ActivityResultCallback gets the result of this request.
-                SideEffect{
-                    locationPermissionLauncher.launch(arrayOf(
-                        Manifest.permission.ACCESS_FINE_LOCATION,
-                        Manifest.permission.ACCESS_COARSE_LOCATION,
-                       ))
+                SideEffect {
+                    locationPermissionLauncher.launch(
+                        arrayOf(
+                            Manifest.permission.ACCESS_FINE_LOCATION,
+                            Manifest.permission.ACCESS_COARSE_LOCATION,
+                        )
+                    )
                 }
-                }
+            }
 
         }
 
@@ -217,14 +219,16 @@ fun HomeScreen(
                 .size(160.dp)
                 .clickable(onClick = {
                     if (locationPermissionState.allPermissionsGranted) {
-//                        requestPe
+                        requestPermissionLauncher.launch(Manifest.permission.SEND_SMS)
                     } else {
                         handleLocationPermissions(locationPermissionState) {
                             snackbarImpl(it, scope, snackbarHostState) {
-                                locationPermissionLauncher.launch(arrayOf(
-                                    Manifest.permission.ACCESS_FINE_LOCATION,
-                                    Manifest.permission.ACCESS_COARSE_LOCATION,
-                                ))
+                                locationPermissionLauncher.launch(
+                                    arrayOf(
+                                        Manifest.permission.ACCESS_FINE_LOCATION,
+                                        Manifest.permission.ACCESS_COARSE_LOCATION,
+                                    )
+                                )
 
                             }
                         }
@@ -318,7 +322,9 @@ fun InstructionText(modifier: Modifier = Modifier) {
 @Composable
 fun CurrentLocationField(
     modifier: Modifier = Modifier,
-    locationPermissionsState: MultiplePermissionsState
+    locationPermissionsState: MultiplePermissionsState,
+    onTextChanged: (String) -> Unit
+
 ) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -344,6 +350,7 @@ fun CurrentLocationField(
                 }
 
             }
+            onTextChanged(locationInfo)
         }
     } else {
         locationInfo = "Please enable device location to see current location"
@@ -352,7 +359,10 @@ fun CurrentLocationField(
     TextField(
         modifier = modifier.fillMaxWidth(),
         value = locationInfo,
-        onValueChange = {},
+        singleLine = true,
+        onValueChange = {
+            onTextChanged(it)
+        },
         readOnly = true,
         leadingIcon = {
             Icon(
