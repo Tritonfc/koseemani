@@ -11,10 +11,13 @@ object SMSManager {
     lateinit var application: Application
 
 
-    fun sendSOSMessage(message: String, phoneNumber: String) {
+    fun sendSOSMessage(message: String, emergencyContacts: List<String>) {
         val smsManager = getSmsManagerInstance()
         try {
-            smsManager?.sendTextMessage(phoneNumber, null, message, null, null)
+            emergencyContacts.forEach{phoneNumber->
+                smsManager?.sendTextMessage(phoneNumber, null, message, null, null)
+            }
+
         } catch (e: Exception) {
             Log.e("SMS_ERROR", e.toString())
 
