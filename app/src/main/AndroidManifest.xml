@@ -5,7 +5,10 @@
     <uses-feature
         android:name="android.hardware.telephony"
         android:required="false" />
-
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE"/>
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
     <uses-permission android:name="android.permission.SEND_SMS" />
 
@@ -42,11 +45,16 @@
 
         <!-- Recommended for Android 9 (API level 28) and lower. -->
 <!--        &lt;!&ndash; Required for Android 10 (API level 29) and higher. &ndash;&gt;-->
-<!--        <service-->
-<!--            android:name="MyNavigationService"-->
-<!--            android:foregroundServiceType="location">-->
-<!--       -->
-<!--    </service>-->
+        <service
+            android:name=".service.SendSmsService"
+            android:foregroundServiceType="camera|location|microphone"
+            android:exported="false">
+    </service>
+        <receiver android:name=".broadcast.SOSBroadcastReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.MEDIA_BUTTON" />
+            </intent-filter>
+        </receiver>
     </application>
 
 </manifest>

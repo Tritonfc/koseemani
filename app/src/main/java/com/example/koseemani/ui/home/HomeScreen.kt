@@ -3,23 +3,20 @@ package com.example.koseemani.ui.home
 import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.location.Address
 import android.location.Geocoder
 import android.location.LocationManager
-import androidx.activity.compose.ManagedActivityResultLauncher
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresPermission
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -32,22 +29,17 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ArrowForward
 import androidx.compose.material.icons.outlined.Notifications
-import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldColors
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -71,19 +63,16 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
-import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import androidx.core.content.ContextCompat.getSystemService
 
-import androidx.navigation.ActivityNavigatorExtras
 import com.example.koseemani.R
+import com.example.koseemani.broadcast.SOSBroadcastReceiver
 import com.example.koseemani.utils.SMSManager
+import com.example.koseemani.utils.testContacts
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.MultiplePermissionsState
-import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import com.google.accompanist.permissions.rememberPermissionState
-import com.google.accompanist.permissions.shouldShowRationale
 import com.google.android.gms.location.LocationServices
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -98,6 +87,8 @@ fun HomeScreen(
     snackbarHostState: SnackbarHostState
 ) {
     val scope = rememberCoroutineScope()
+    val sosReceiver = SOSBroadcastReceiver()
+    val filter = IntentFilter("android.media.VOLUME_CHANGED_ACTION")
     val context = LocalContext.current
     var isPermitted by remember {
         mutableStateOf(false)
@@ -117,10 +108,12 @@ fun HomeScreen(
         contract = ActivityResultContracts.RequestPermission(),
         onResult = { isGranted ->
             if (isGranted) {
-                SMSManager.sendSOSMessage(
-                    "SOS, I am in danger. I am currently located at $currLocation",
-                    "08102309062"
-                )
+//                context.registerReceiver(sosReceiver,filter)
+//                SMSManager.sendSOSMessage(
+//                    "SOS, I am in danger. I am currently located at $currLocation",
+//                    emergencyContacts = testContacts
+//
+//                )
 
             } else {
 
@@ -179,7 +172,7 @@ fun HomeScreen(
                 context,
                 Manifest.permission.ACCESS_FINE_LOCATION
             ) -> {
-                CurrentLocationField(locationPermissionsState = locationPermissionState) {
+                CurrentLocationField {
                     currLocation = it
                 }
             }
@@ -318,11 +311,10 @@ fun InstructionText(modifier: Modifier = Modifier) {
 
 
 @RequiresPermission(anyOf = [Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.ACCESS_FINE_LOCATION])
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CurrentLocationField(
     modifier: Modifier = Modifier,
-    locationPermissionsState: MultiplePermissionsState,
     onTextChanged: (String) -> Unit
 
 ) {
