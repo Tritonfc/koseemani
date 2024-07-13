@@ -12,11 +12,13 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresPermission
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -35,11 +37,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -62,13 +66,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 
 import com.example.koseemani.R
 import com.example.koseemani.broadcast.SOSBroadcastReceiver
 import com.example.koseemani.utils.SMSManager
-import com.example.koseemani.utils.testContacts
+
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.MultiplePermissionsState
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
@@ -84,11 +89,17 @@ import java.util.Locale
 @Composable
 fun HomeScreen(
     modifier: Modifier = Modifier,
-    snackbarHostState: SnackbarHostState
+    snackbarHostState: SnackbarHostState,
+    onSOSClicked : ()->Unit
 ) {
     val scope = rememberCoroutineScope()
-    val sosReceiver = SOSBroadcastReceiver()
-    val filter = IntentFilter("android.media.VOLUME_CHANGED_ACTION")
+//    val sosReceiver = SOSBroadcastReceiver()
+//    val filter = IntentFilter("android.media.VOLUME_CHANGED_ACTION")
+
+    var isRecording by remember {
+        mutableStateOf(false)
+
+    }
     val context = LocalContext.current
     var isPermitted by remember {
         mutableStateOf(false)
@@ -108,6 +119,8 @@ fun HomeScreen(
         contract = ActivityResultContracts.RequestPermission(),
         onResult = { isGranted ->
             if (isGranted) {
+                onSOSClicked()
+//                isRecording = true
 //                context.registerReceiver(sosReceiver,filter)
 //                SMSManager.sendSOSMessage(
 //                    "SOS, I am in danger. I am currently located at $currLocation",
@@ -157,6 +170,7 @@ fun HomeScreen(
         )
 
     )
+
     Column(
         modifier = modifier.padding(horizontal = 24.dp),
 
@@ -175,12 +189,13 @@ fun HomeScreen(
                 CurrentLocationField {
                     currLocation = it
                 }
+
             }
 
             else -> {
                 // You can directly ask for the permission.
                 // The registered ActivityResultCallback gets the result of this request.
-                SideEffect {
+                LaunchedEffect(Unit) {
                     locationPermissionLauncher.launch(
                         arrayOf(
                             Manifest.permission.ACCESS_FINE_LOCATION,
@@ -242,6 +257,9 @@ fun HomeScreen(
         SafetyInsightRow(safetyList = safetyList)
 
 
+    }
+    if(isRecording){
+        RecordingVideoOverlay()
     }
 }
 
@@ -493,6 +511,22 @@ fun snackbarImpl(
 @OptIn(ExperimentalPermissionsApi::class)
 fun checkLocationPermission(locationPermissionState: MultiplePermissionsState) {
     locationPermissionState.launchMultiplePermissionRequest()
+}
+
+@Composable
+fun RecordingVideoOverlay(modifier: Modifier = Modifier){
+    Surface(color = Color.Black, modifier = modifier
+
+        .fillMaxSize()
+        .alpha(0.8f)) {
+        Row(verticalAlignment = Alignment.CenterVertically,) {
+            Image(painter = painterResource(id = R.drawable.left_wifi_vector), contentDescription = "left signal" ,)
+            Image(painter = painterResource(id = R.drawable.sos_button_activated), contentDescription = "button" )
+            Image(painter = painterResource(id = R.drawable.right_wifi_vector), contentDescription = "right signal", )
+        }
+
+
+    }
 }
 
 @OptIn(ExperimentalPermissionsApi::class)

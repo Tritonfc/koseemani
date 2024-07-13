@@ -16,6 +16,7 @@ object SMSManager {
         try {
             emergencyContacts.forEach{phoneNumber->
                 smsManager?.sendTextMessage(phoneNumber, null, message, null, null)
+
             }
 
         } catch (e: Exception) {

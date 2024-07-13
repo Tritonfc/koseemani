@@ -1,7 +1,13 @@
 package com.example.koseemani
 
 import android.annotation.SuppressLint
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
+import android.content.ServiceConnection
 import android.os.Bundle
+import android.os.IBinder
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
@@ -53,11 +59,54 @@ import com.example.koseemani.navigation.Contacts
 import com.example.koseemani.navigation.History
 import com.example.koseemani.navigation.Home
 import com.example.koseemani.navigation.Settings
+import com.example.koseemani.service.VideoRecordService
 import com.example.koseemani.ui.home.HomeScreen
 import com.example.koseemani.ui.theme.KoseemaniTheme
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
+private lateinit var mService:VideoRecordService
+    private var mBound: Boolean = false
+    private val coroutineScope = CoroutineScope(Dispatchers.Main.immediate)
 
+    private val connection = object : ServiceConnection {
+
+        override fun onServiceConnected(className: ComponentName, service: IBinder) {
+            // We've bound to LocalService, cast the IBinder and get LocalService instance.
+            val binder = service as VideoRecordService.LocalBinder
+            mService = binder.getService()
+            mBound = true
+
+            mService.getVideoFile = {
+                coroutineScope.launch {
+                    Toast.makeText(this@MainActivity,it,Toast.LENGTH_LONG).show()
+                }
+
+                mService.stopForegroundService()
+
+            }
+        }
+
+        override fun onServiceDisconnected(arg0: ComponentName) {
+            mBound = false
+
+        }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        tryToBindToServiceIfRunning()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        unbindService(connection)
+        coroutineScope.cancel()
+    }
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.light(
@@ -67,16 +116,32 @@ class MainActivity : ComponentActivity() {
         )
         super.onCreate(savedInstanceState)
         setContent {
-            KoseemaniApp()
+            KoseemaniApp(onSosClick = ::startService)
 
         }
+
+
     }
+
+    private fun startService(){
+        startForegroundService(Intent(this, VideoRecordService::class.java))
+
+        // bind to the service to update UI
+        tryToBindToServiceIfRunning()
+    }
+
+    private fun tryToBindToServiceIfRunning() {
+        Intent(this, VideoRecordService::class.java).also { intent ->
+            bindService(intent, connection, Context.BIND_AUTO_CREATE)
+        }
+    }
+
 }
 
 @SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun KoseemaniApp() {
+fun KoseemaniApp(onSosClick:()->Unit) {
     KoseemaniTheme {
         // A surface container using the 'background' color from the theme
         Surface(
@@ -99,7 +164,8 @@ fun KoseemaniApp() {
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .fillMaxHeight(),
-                            snackbarHostState
+                            snackbarHostState = snackbarHostState,
+                            onSOSClicked = onSosClick
 
                         )
 
