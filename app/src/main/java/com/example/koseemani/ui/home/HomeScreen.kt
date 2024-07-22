@@ -3,16 +3,16 @@ package com.example.koseemani.ui.home
 import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
-import android.content.IntentFilter
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.location.Address
 import android.location.Geocoder
 import android.location.LocationManager
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresPermission
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -44,14 +44,19 @@ import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
@@ -62,18 +67,11 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
-
 import com.example.koseemani.R
-import com.example.koseemani.broadcast.SOSBroadcastReceiver
+import com.example.koseemani.service.VideoRecordService
 import com.example.koseemani.utils.SMSManager
-
+import com.example.koseemani.utils.testContacts
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.MultiplePermissionsState
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
@@ -84,13 +82,15 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.util.Locale
 
+
 @SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
 @OptIn(ExperimentalPermissionsApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     modifier: Modifier = Modifier,
     snackbarHostState: SnackbarHostState,
-    onSOSClicked : ()->Unit
+    videoRecordService: VideoRecordService?,
+    onSOSClicked: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
 //    val sosReceiver = SOSBroadcastReceiver()
@@ -113,14 +113,15 @@ fun HomeScreen(
             Manifest.permission.ACCESS_COARSE_LOCATION,
             Manifest.permission.ACCESS_FINE_LOCATION,
 
-        )
+
+            )
     )
     val requestPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
         onResult = { isGranted ->
             if (isGranted) {
                 onSOSClicked()
-//                isRecording = true
+                isRecording = true
 //                context.registerReceiver(sosReceiver,filter)
 //                SMSManager.sendSOSMessage(
 //                    "SOS, I am in danger. I am currently located at $currLocation",
@@ -137,23 +138,16 @@ fun HomeScreen(
     val locationPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
-        when {
-            permissions.getOrDefault(Manifest.permission.ACCESS_FINE_LOCATION, false) -> {
-                isPermitted = true
-//                requestPermissionLauncher.launch(Manifest.permission.SEND_SMS)
-//                smsPermissionState.launchPermissionRequest()
-            }
-
-            permissions.getOrDefault(Manifest.permission.ACCESS_COARSE_LOCATION, false) -> {
-                // Only approximate location access granted.
-                isPermitted = true
-            }
-
-
+        val areGranted =
+            if (permissions.isEmpty()) locationPermissionState.allPermissionsGranted else permissions.values.reduce { acc, next -> acc && next }
+        if (areGranted) {
+            isPermitted = true
+        } else {
+            // Show dialog
         }
+
+
     }
-
-
 
 
     val safetyList = listOf<SafetyInsightItem>(
@@ -171,6 +165,25 @@ fun HomeScreen(
 
     )
 
+    if (videoRecordService != null) {
+        videoRecordService.getVideoFile = { videoUri ->
+
+            scope.launch(Dispatchers.Main.immediate) {
+                Toast.makeText(context, "Sending alerts to contacts", Toast.LENGTH_LONG).show()
+            }
+            SMSManager.sendSOSMessage(
+                "SOS, I am in danger and located at : $currLocation",
+                emergencyContacts = testContacts,
+                videoUri
+            )
+
+//            videoRecordService.stopForegroundService()
+
+            isRecording = false
+        }
+
+    }
+
     Column(
         modifier = modifier.padding(horizontal = 24.dp),
 
@@ -186,11 +199,12 @@ fun HomeScreen(
                 context,
                 Manifest.permission.ACCESS_FINE_LOCATION
             ) -> {
+
                 CurrentLocationField {
                     currLocation = it
                 }
-
             }
+
 
             else -> {
                 // You can directly ask for the permission.
@@ -200,7 +214,8 @@ fun HomeScreen(
                         arrayOf(
                             Manifest.permission.ACCESS_FINE_LOCATION,
                             Manifest.permission.ACCESS_COARSE_LOCATION,
-                        )
+
+                            )
                     )
                 }
             }
@@ -258,7 +273,7 @@ fun HomeScreen(
 
 
     }
-    if(isRecording){
+    if (isRecording) {
         RecordingVideoOverlay()
     }
 }
@@ -514,15 +529,26 @@ fun checkLocationPermission(locationPermissionState: MultiplePermissionsState) {
 }
 
 @Composable
-fun RecordingVideoOverlay(modifier: Modifier = Modifier){
-    Surface(color = Color.Black, modifier = modifier
+fun RecordingVideoOverlay(modifier: Modifier = Modifier) {
+    Surface(
+        color = Color.Black, modifier = modifier
 
-        .fillMaxSize()
-        .alpha(0.8f)) {
-        Row(verticalAlignment = Alignment.CenterVertically,) {
-            Image(painter = painterResource(id = R.drawable.left_wifi_vector), contentDescription = "left signal" ,)
-            Image(painter = painterResource(id = R.drawable.sos_button_activated), contentDescription = "button" )
-            Image(painter = painterResource(id = R.drawable.right_wifi_vector), contentDescription = "right signal", )
+            .fillMaxSize()
+            .alpha(0.8f)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Image(
+                painter = painterResource(id = R.drawable.left_wifi_vector),
+                contentDescription = "left signal",
+            )
+            Image(
+                painter = painterResource(id = R.drawable.sos_button_activated),
+                contentDescription = "button"
+            )
+            Image(
+                painter = painterResource(id = R.drawable.right_wifi_vector),
+                contentDescription = "right signal",
+            )
         }
 
 

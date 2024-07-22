@@ -1,6 +1,7 @@
 package com.example.koseemani.utils
 
 import android.app.Application
+import android.net.Uri
 import android.os.Build
 import android.telephony.SmsManager
 import android.util.Log
@@ -11,11 +12,13 @@ object SMSManager {
     lateinit var application: Application
 
 
-    fun sendSOSMessage(message: String, emergencyContacts: List<String>) {
+    fun sendSOSMessage(message: String, emergencyContacts: List<String>,videoUri: Uri) {
         val smsManager = getSmsManagerInstance()
         try {
             emergencyContacts.forEach{phoneNumber->
                 smsManager?.sendTextMessage(phoneNumber, null, message, null, null)
+//                smsManager?.sendMultimediaMessage(application, videoUri,null, null,null)
+
 
             }
 

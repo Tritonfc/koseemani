@@ -38,7 +38,7 @@ object NotificationsHelper {
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle("Hi Fisayo")
             .setContentText("App is  recording a video")
-            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
             .setContentIntent(intent.let { notificationIntent ->
                 PendingIntent.getActivity(

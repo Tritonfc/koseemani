@@ -1,18 +1,27 @@
 package com.example.koseemani
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
+import android.content.pm.PackageManager
+import android.hardware.Camera
 import android.os.Bundle
 import android.os.IBinder
-import android.widget.Toast
+import android.view.SurfaceHolder
+import android.view.SurfaceView
+import android.view.ViewGroup
+import android.widget.LinearLayout
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -42,18 +51,20 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.viewinterop.AndroidViewBinding
+import androidx.core.content.ContextCompat
 import androidx.navigation.NavController
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.example.koseemani.databinding.ActivityCameraPreviewBinding
 
 import com.example.koseemani.navigation.Contacts
 import com.example.koseemani.navigation.History
@@ -65,13 +76,31 @@ import com.example.koseemani.ui.theme.KoseemaniTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
-private lateinit var mService:VideoRecordService
-    private var mBound: Boolean = false
+    private lateinit var mService: VideoRecordService
+
+
+    private var mBound by mutableStateOf(false)
     private val coroutineScope = CoroutineScope(Dispatchers.Main.immediate)
+    val permissions = arrayOf(
+        Manifest.permission.CAMERA,
+        Manifest.permission.RECORD_AUDIO,
+        Manifest.permission.WRITE_EXTERNAL_STORAGE,
+        Manifest.permission.READ_EXTERNAL_STORAGE
+    )
+
+
+    private val permissionsLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
+            val areGranted = permissions.values.reduce { acc, next -> acc && next }
+            if (areGranted) {
+                camera = Camera.open()
+            } else {
+
+            }
+
+        }
 
     private val connection = object : ServiceConnection {
 
@@ -80,34 +109,46 @@ private lateinit var mService:VideoRecordService
             val binder = service as VideoRecordService.LocalBinder
             mService = binder.getService()
             mBound = true
-
-            mService.getVideoFile = {
-                coroutineScope.launch {
-                    Toast.makeText(this@MainActivity,it,Toast.LENGTH_LONG).show()
-                }
-
+            mService.stopService ={
                 mService.stopForegroundService()
-
+                stopService(Intent(this@MainActivity, VideoRecordService::class.java))
+//                unbindService(this)
             }
+
+
         }
 
         override fun onServiceDisconnected(arg0: ComponentName) {
             mBound = false
+
 
         }
     }
 
     override fun onStart() {
         super.onStart()
-        tryToBindToServiceIfRunning()
+//        tryToBindToServiceIfRunning()
+    }
+
+
+    override fun onStop() {
+        super.onStop()
+
     }
 
     override fun onDestroy() {
         super.onDestroy()
+
         unbindService(connection)
         coroutineScope.cancel()
     }
+
     override fun onCreate(savedInstanceState: Bundle?) {
+//        mService = VideoRecordService()
+        checkAndRequestLocationPermissions(
+            this, permissions, true, permissionsLauncher
+        )
+
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.light(
                 android.graphics.Color.TRANSPARENT,
@@ -116,32 +157,127 @@ private lateinit var mService:VideoRecordService
         )
         super.onCreate(savedInstanceState)
         setContent {
-            KoseemaniApp(onSosClick = ::startService)
+            KoseemaniApp(
+                onSosClick = ::bindSurface, videoRecordService =  if(mBound) mService else null
+            )
+
+
 
         }
+
+//        mService.stopService = {
+//            mService.stopForegroundService()
+//            stopService(Intent(this@MainActivity, VideoRecordService::class.java))
+//        }
+
 
 
     }
 
-    private fun startService(){
+    override fun onResume() {
+        super.onResume()
+//tryToBindToServiceIfRunning()
+
+        }
+
+
+    private fun startService() {
+        tryToBindToServiceIfRunning()
         startForegroundService(Intent(this, VideoRecordService::class.java))
 
         // bind to the service to update UI
-        tryToBindToServiceIfRunning()
+
     }
+
+    private fun bindSurface() {
+
+
+        val linearLayout = LinearLayout(this)
+        linearLayout.layoutParams = LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.FILL_PARENT, ViewGroup.LayoutParams.FILL_PARENT
+        )
+        val surfaceViewPrag = SurfaceView(this)
+        surfaceViewPrag.layoutParams = LinearLayout.LayoutParams(1, 1)
+        linearLayout.addView(surfaceViewPrag)
+        addContentView(
+            linearLayout, LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.FILL_PARENT, ViewGroup.LayoutParams.FILL_PARENT
+            )
+        )
+
+        surfaceView = surfaceViewPrag
+
+        surfaceHolder = surfaceView?.holder
+        surfaceHolder?.setType(SurfaceHolder.SURFACE_TYPE_PUSH_BUFFERS);
+//           surfaceViewPrag.holder.addCallback(SurfaceCallBack())
+        surfaceHolder?.addCallback(SurfaceCallBack())
+
+    }
+
 
     private fun tryToBindToServiceIfRunning() {
         Intent(this, VideoRecordService::class.java).also { intent ->
-            bindService(intent, connection, Context.BIND_AUTO_CREATE)
+            bindService(intent, connection,0)
         }
     }
 
+    inner class SurfaceCallBack : SurfaceHolder.Callback {
+        override fun surfaceCreated(holder: SurfaceHolder) {
+            camera = Camera.open(1)
+            startService()
+        }
+
+        override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
+
+        }
+
+        override fun surfaceDestroyed(holder: SurfaceHolder) {
+//            camera?.release()
+            mService.mServiceCamera?.release()
+
+        }
+
+    }
+
+    private fun checkAndRequestLocationPermissions(
+        context: Context,
+        permissions: Array<String>,
+        atLaunch:Boolean,
+        launcher: ActivityResultLauncher<Array<String>>
+    ) {
+        if (permissions.all {
+                ContextCompat.checkSelfPermission(
+                    context,
+                    it,
+                ) == PackageManager.PERMISSION_GRANTED
+            }) {
+
+
+        } else {
+            //
+            launcher.launch(permissions)
+        }
+    }
+
+
+    companion object {
+         var camera: Camera? = null
+         var surfaceHolder: SurfaceHolder? = null
+
+        @SuppressLint("StaticFieldLeak")
+         var surfaceView: SurfaceView? = null
+    }
 }
+
 
 @SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun KoseemaniApp(onSosClick:()->Unit) {
+fun KoseemaniApp(
+    onSosClick: () -> Unit,
+    videoRecordService: VideoRecordService? = null,
+
+) {
     KoseemaniTheme {
         // A surface container using the 'background' color from the theme
         Surface(
@@ -154,8 +290,7 @@ fun KoseemaniApp(onSosClick:()->Unit) {
             val navController = rememberNavController()
 
             val snackbarHostState = remember { SnackbarHostState() }
-            Scaffold(
-                bottomBar = { BottomNavigationBar(navController = navController) },
+            Scaffold(bottomBar = { BottomNavigationBar(navController = navController) },
                 snackbarHost = { SnackbarHost(hostState = snackbarHostState) }) {
 
                 NavHost(navController = navController, startDestination = Home) {
@@ -165,6 +300,7 @@ fun KoseemaniApp(onSosClick:()->Unit) {
                                 .fillMaxWidth()
                                 .fillMaxHeight(),
                             snackbarHostState = snackbarHostState,
+                            videoRecordService = videoRecordService,
                             onSOSClicked = onSosClick
 
                         )
@@ -196,8 +332,7 @@ fun KoseemaniApp(onSosClick:()->Unit) {
 
 @Composable
 fun BottomNavigationBar(
-    modifier: Modifier = Modifier,
-    navController: NavController
+    modifier: Modifier = Modifier, navController: NavController
 ) {
     var selectedIndex by rememberSaveable {
         mutableStateOf(0)
@@ -235,7 +370,7 @@ fun BottomNavigationBar(
                 label = { Text(text = bottomNavItem.title) },
                 selected = index == selectedIndex,
                 onClick = {
-                    navController.navigate(bottomNavItem.route){
+                    navController.navigate(bottomNavItem.route) {
                         popUpTo(navController.graph.findStartDestination().id) {
                             saveState = true
                         }
