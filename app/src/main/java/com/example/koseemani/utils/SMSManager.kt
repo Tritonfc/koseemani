@@ -12,12 +12,12 @@ object SMSManager {
     lateinit var application: Application
 
 
-    fun sendSOSMessage(message: String, emergencyContacts: List<String>,videoUri: Uri) {
+    fun sendSOSMessage(messages: ArrayList<String>, emergencyContacts: List<String>) {
         val smsManager = getSmsManagerInstance()
         try {
-            emergencyContacts.forEach{phoneNumber->
-                smsManager?.sendTextMessage(phoneNumber, null, message, null, null)
-//                smsManager?.sendMultimediaMessage(application, videoUri,null, null,null)
+            emergencyContacts.forEach { phoneNumber ->
+
+                smsManager?.sendMultipartTextMessage(phoneNumber, null, messages, null, null)
 
 
             }
@@ -25,7 +25,7 @@ object SMSManager {
         } catch (e: Exception) {
             Log.e("SMS_ERROR", e.toString())
 
-            Toast.makeText(application, "$e",Toast.LENGTH_SHORT).show()
+            Toast.makeText(application, "$e", Toast.LENGTH_SHORT).show()
 
         }
 

@@ -95,7 +95,7 @@ class MainActivity : ComponentActivity() {
         registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
             val areGranted = permissions.values.reduce { acc, next -> acc && next }
             if (areGranted) {
-                camera = Camera.open()
+//                camera = Camera.open()
             } else {
 
             }
@@ -223,7 +223,7 @@ class MainActivity : ComponentActivity() {
 
     inner class SurfaceCallBack : SurfaceHolder.Callback {
         override fun surfaceCreated(holder: SurfaceHolder) {
-            camera = Camera.open(1)
+            camera = Camera.open(0)
             startService()
         }
 

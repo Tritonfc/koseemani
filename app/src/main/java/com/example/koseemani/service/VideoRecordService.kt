@@ -51,7 +51,7 @@ class VideoRecordService : Service() {
     private val currentFormat = 0
     private val file_exts = arrayOf(VIDEO_RECORDER_FILE_EXT_MP4)
 
-    var getVideoFile: ((Uri) -> Unit)? = null
+    var getVideoFile: ((String) -> Unit)? = null
     var stopService: (() -> Unit)? = null
     override fun onBind(intent: Intent?): IBinder {
         return binder
@@ -114,12 +114,12 @@ class VideoRecordService : Service() {
 
 
 
-            delay(6000)
+            delay(10000)
 
             stopRecording()
 
 
-            getVideoFile?.invoke(getVideoFileUri(videoSavePathInDevice))
+            getVideoFile?.invoke(videoSavePathInDevice)
             stopService?.invoke()
 
         }
@@ -138,11 +138,11 @@ class VideoRecordService : Service() {
             try {
                 val p = mServiceCamera?.getParameters()
                 val listPreviewSize: List<Camera.Size> = p?.supportedPreviewSizes ?: emptyList()
-                val previewSize: Camera.Size = listPreviewSize[0] as Size
+                val previewSize: Camera.Size = listPreviewSize[0]
                 p?.setPreviewSize(previewSize.width, previewSize.height)
                 mServiceCamera?.setParameters(p)
             } catch (e: RuntimeException) {
-                return@startRecording
+                return
             }
 
             try {
@@ -166,8 +166,8 @@ class VideoRecordService : Service() {
             mMediaRecorder?.setAudioEncoder(MediaRecorder.AudioEncoder.AMR_NB)
             mMediaRecorder?.setVideoEncoder(MediaRecorder.VideoEncoder.H264)
             mMediaRecorder?.setOutputFile(videoSavePathInDevice)
-            //            mMediaRecorder.setOutputFile(Environment.getExternalStorageDirectory().getPath() + "/"+format+".mp4");
-//            mMediaRecorder.setOutputFile(Environment.getExternalStorageDirectory().getAbsolutePath() + "/"+"recordVideo"+"/"+format+".mp4");
+//            mMediaRecorder?.setVideoFrameRate(16)
+            mMediaRecorder?.setVideoEncodingBitRate(3000000)
             mMediaRecorder?.setPreviewDisplay(mSurfaceHolder!!.surface)
             mMediaRecorder?.prepare()
             mMediaRecorder?.start()
@@ -210,9 +210,7 @@ class VideoRecordService : Service() {
         }
     }
 
-    private fun getVideoFileUri(videoPathString: String): Uri {
-        return Uri.fromFile(File(videoPathString))
-    }
+
 
     private fun getFilename(): String {
 

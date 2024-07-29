@@ -2,14 +2,17 @@ package com.example.koseemani.ui.home
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.location.Address
 import android.location.Geocoder
 import android.location.LocationManager
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.ActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresPermission
 import androidx.compose.foundation.Image
@@ -69,17 +72,29 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.example.koseemani.R
+import com.example.koseemani.data.remote.GoogleDriveHelper
 import com.example.koseemani.service.VideoRecordService
 import com.example.koseemani.utils.SMSManager
+import com.example.koseemani.utils.returnBool
 import com.example.koseemani.utils.testContacts
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.MultiplePermissionsState
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import com.google.accompanist.permissions.rememberPermissionState
+import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.auth.api.signin.GoogleSignInAccount
 import com.google.android.gms.location.LocationServices
+import com.google.android.gms.tasks.Task
+import com.google.api.client.http.FileContent
+import com.google.api.services.drive.model.File
+import com.google.api.services.drive.model.Permission
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.IOException
+import java.util.Collections
 import java.util.Locale
 
 
@@ -92,7 +107,7 @@ fun HomeScreen(
     videoRecordService: VideoRecordService?,
     onSOSClicked: () -> Unit
 ) {
-    val scope = rememberCoroutineScope()
+    val scope = rememberCoroutineScope { Dispatchers.Default }
 //    val sosReceiver = SOSBroadcastReceiver()
 //    val filter = IntentFilter("android.media.VOLUME_CHANGED_ACTION")
 
@@ -103,6 +118,10 @@ fun HomeScreen(
     val context = LocalContext.current
     var isPermitted by remember {
         mutableStateOf(false)
+    }
+
+    var videoFilePath by remember {
+        mutableStateOf("")
     }
     var currLocation by rememberSaveable {
         mutableStateOf("")
@@ -116,6 +135,47 @@ fun HomeScreen(
 
             )
     )
+
+    val startForResult =
+        rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            if (result.resultCode == Activity.RESULT_OK) {
+                val intent = result.data
+                if (result.data != null) {
+                    val task: Task<GoogleSignInAccount> =
+                        GoogleDriveHelper.getSignedInFromAccount(intent)
+
+                    if (task.isSuccessful) {
+                        uploadVideoToDrive(scope, context, videoFilePath) { videoLink ->
+                            val firstMessagePart =
+                                "SOS,I am in danger and located at: $currLocation."
+                            val secondMessagePart = "Here's a clip of me:"
+                            val messagesPart = arrayListOf(
+                                firstMessagePart,
+                                secondMessagePart,
+                                videoLink
+
+                            )
+                            SMSManager.sendSOSMessage(
+                                messages = messagesPart,
+                                emergencyContacts = testContacts,
+
+                                )
+
+
+//            videoRecordService.stopForegroundService()
+
+                            isRecording = false
+                        }
+                    } else {
+                        Toast.makeText(context, "Google Login Failed", Toast.LENGTH_LONG).show()
+                    }
+                }
+            } else {
+                isRecording = false
+                Toast.makeText(context, "Google Login Result failed!", Toast.LENGTH_LONG).show()
+                Log.d("GOOGLE LOGIN", result.resultCode.toString())
+            }
+        }
     val requestPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
         onResult = { isGranted ->
@@ -168,18 +228,12 @@ fun HomeScreen(
     if (videoRecordService != null) {
         videoRecordService.getVideoFile = { videoUri ->
 
-            scope.launch(Dispatchers.Main.immediate) {
-                Toast.makeText(context, "Sending alerts to contacts", Toast.LENGTH_LONG).show()
-            }
-            SMSManager.sendSOSMessage(
-                "SOS, I am in danger and located at : $currLocation",
-                emergencyContacts = testContacts,
-                videoUri
-            )
+            videoFilePath = videoUri
 
-//            videoRecordService.stopForegroundService()
 
-            isRecording = false
+            startForResult.launch(GoogleDriveHelper.getGoogleSignInClient(context).signInIntent)
+
+
         }
 
     }
@@ -278,6 +332,60 @@ fun HomeScreen(
     }
 }
 
+fun uploadVideoToDrive(
+    scope: CoroutineScope, context:
+    Context, videoFilePath: String, onCompletedUpload: (String) -> Unit
+) {
+    var videoLink: String? = null
+    scope.launch {
+        val gFolder = File()
+        // Set file name and MIME
+        gFolder.name = "Koseemani Videos"
+        gFolder.mimeType = "application/vnd.google-apps.folder"
+        val driveService = GoogleDriveHelper.getDriveBuilder(context)
+
+        val filePair =
+            GoogleDriveHelper.checkIfFileExists(gFolder.name, gFolder.mimeType, driveService)
+
+        val fileId: String =
+            if (filePair.first) filePair.second else driveService.Files().create(gFolder)
+                .setFields("id").execute().id
+
+        val metadata = File()
+        metadata.name = "${System.currentTimeMillis()}"
+        metadata.parents = Collections.singletonList(fileId)
+        metadata.permissions = listOf(
+
+        )
+
+        val filePath = java.io.File(videoFilePath)
+
+        val mediaContent = FileContent("video/mp4", filePath)
+        try {
+
+            videoLink =
+                driveService.Files().create(metadata, mediaContent).setFields("id,webViewLink")
+                    .execute().webViewLink
+
+
+
+            withContext(Dispatchers.Main.immediate) {
+                Toast.makeText(context, "Sending alert to contacts", Toast.LENGTH_LONG).show()
+            }
+        } catch (e: IOException) {
+            Log.e("UPLOAD ERROR", e.message!!)
+            withContext(Dispatchers.Main.immediate) {
+                Toast.makeText(context, "Sending alerts to contacts Failed", Toast.LENGTH_LONG)
+                    .show()
+            }
+        } finally {
+
+            onCompletedUpload(videoLink ?: "")
+        }
+
+
+    }
+}
 
 @Composable
 fun NameHeadline(modifier: Modifier = Modifier, userName: String) {
@@ -534,7 +642,7 @@ fun RecordingVideoOverlay(modifier: Modifier = Modifier) {
         color = Color.Black, modifier = modifier
 
             .fillMaxSize()
-            .alpha(0.8f)
+            .alpha(0.9f)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Image(
