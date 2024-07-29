@@ -25,14 +25,16 @@ android {
     buildTypes {
 
         debug {
-
+            isMinifyEnabled = false
         }
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isDebuggable = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
     compileOptions {
@@ -44,14 +46,21 @@ android {
     }
     buildFeatures {
         compose = true
+        viewBinding = true
     }
 //    composeOptions {
 //        kotlinCompilerExtensionVersion = "1.4.3"
 //    }
     packaging {
         resources {
-            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            excludes += "**/*"
         }
+    }
+    configurations.all{
+        resolutionStrategy{
+            force("com.google.api-client:google-api-client:1.30.5")
+        }
+
     }
 }
 
@@ -67,13 +76,36 @@ dependencies {
     implementation("androidx.compose.ui:ui")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
     implementation("androidx.compose.ui:ui-graphics")
+    implementation("androidx.compose.ui:ui-viewbinding")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
     implementation("com.google.accompanist:accompanist-permissions:0.35.1-alpha")
 
     implementation ("com.google.android.gms:play-services-location:21.3.0")
 
+    implementation ("com.google.android.gms:play-services-auth:21.2.0")
+
     implementation("androidx.navigation:navigation-runtime-ktx:2.7.7")
+    implementation("androidx.camera:camera-view:1.3.4")
+    implementation ("com.google.guava:guava:28.0-android")
+// Guava fix
+    implementation ("com.google.guava:listenablefuture:9999.0-empty-to-avoid-conflict-with-guava")
+    //Google drive
+    implementation ("com.google.apis:google-api-services-drive:v3-rev20190926-1.30.3"){
+        exclude(group = "org.apache.httpcomponents",module = "guava-jdk5")
+    }
+
+    implementation ("com.google.api-client:google-api-client:1.30.5"){
+        exclude(group = "org.apache.httpcomponents",module = "guava-jdk5")
+    }
+
+    implementation ("com.google.api-client:google-api-client-android:1.30.5"){
+        exclude(group = "org.apache.httpcomponents",module = "guava-jdk5")
+    }
+    implementation ("com.google.oauth-client:google-oauth-client-jetty:1.36.0")
+    implementation ("com.google.auth:google-auth-library-oauth2-http:1.23.0")
+
+    //Testing
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")

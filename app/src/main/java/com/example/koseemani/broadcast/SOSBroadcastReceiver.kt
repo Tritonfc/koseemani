@@ -8,10 +8,10 @@ import com.example.koseemani.utils.testContacts
 
 class SOSBroadcastReceiver:BroadcastReceiver() {
     override fun onReceive(context: Context?, intent: Intent?) {
-        SMSManager.sendSOSMessage(
-            "SOS, I am in danger. I am currently located at Alagbole street",
-            emergencyContacts = testContacts
-
-        )
+//        SMSManager.sendSOSMessage(
+//            "SOS, I am in danger. I am currently located at Alagbole street",
+//            emergencyContacts = testContacts
+//
+//        )
     }
 }

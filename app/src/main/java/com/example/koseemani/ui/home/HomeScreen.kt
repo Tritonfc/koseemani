@@ -2,13 +2,17 @@ package com.example.koseemani.ui.home
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.app.Activity
 import android.content.Context
-import android.content.IntentFilter
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.location.Address
 import android.location.Geocoder
 import android.location.LocationManager
+import android.util.Log
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.ActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresPermission
 import androidx.compose.foundation.Image
@@ -17,6 +21,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -35,19 +40,26 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
@@ -58,40 +70,58 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
-
 import com.example.koseemani.R
-import com.example.koseemani.broadcast.SOSBroadcastReceiver
+import com.example.koseemani.data.remote.GoogleDriveHelper
+import com.example.koseemani.service.VideoRecordService
 import com.example.koseemani.utils.SMSManager
+import com.example.koseemani.utils.returnBool
 import com.example.koseemani.utils.testContacts
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.MultiplePermissionsState
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import com.google.accompanist.permissions.rememberPermissionState
+import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.auth.api.signin.GoogleSignInAccount
 import com.google.android.gms.location.LocationServices
+import com.google.android.gms.tasks.Task
+import com.google.api.client.http.FileContent
+import com.google.api.services.drive.model.File
+import com.google.api.services.drive.model.Permission
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.IOException
+import java.util.Collections
 import java.util.Locale
+
 
 @SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
 @OptIn(ExperimentalPermissionsApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     modifier: Modifier = Modifier,
-    snackbarHostState: SnackbarHostState
+    snackbarHostState: SnackbarHostState,
+    videoRecordService: VideoRecordService?,
+    onSOSClicked: () -> Unit
 ) {
-    val scope = rememberCoroutineScope()
-    val sosReceiver = SOSBroadcastReceiver()
-    val filter = IntentFilter("android.media.VOLUME_CHANGED_ACTION")
+    val scope = rememberCoroutineScope { Dispatchers.Default }
+//    val sosReceiver = SOSBroadcastReceiver()
+//    val filter = IntentFilter("android.media.VOLUME_CHANGED_ACTION")
+
+    var isRecording by remember {
+        mutableStateOf(false)
+
+    }
     val context = LocalContext.current
     var isPermitted by remember {
         mutableStateOf(false)
+    }
+
+    var videoFilePath by remember {
+        mutableStateOf("")
     }
     var currLocation by rememberSaveable {
         mutableStateOf("")
@@ -102,12 +132,56 @@ fun HomeScreen(
             Manifest.permission.ACCESS_COARSE_LOCATION,
             Manifest.permission.ACCESS_FINE_LOCATION,
 
-        )
+
+            )
     )
+
+    val startForResult =
+        rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            if (result.resultCode == Activity.RESULT_OK) {
+                val intent = result.data
+                if (result.data != null) {
+                    val task: Task<GoogleSignInAccount> =
+                        GoogleDriveHelper.getSignedInFromAccount(intent)
+
+                    if (task.isSuccessful) {
+                        uploadVideoToDrive(scope, context, videoFilePath) { videoLink ->
+                            val firstMessagePart =
+                                "SOS,I am in danger and located at: $currLocation."
+                            val secondMessagePart = "Here's a clip of me:"
+                            val messagesPart = arrayListOf(
+                                firstMessagePart,
+                                secondMessagePart,
+                                videoLink
+
+                            )
+                            SMSManager.sendSOSMessage(
+                                messages = messagesPart,
+                                emergencyContacts = testContacts,
+
+                                )
+
+
+//            videoRecordService.stopForegroundService()
+
+                            isRecording = false
+                        }
+                    } else {
+                        Toast.makeText(context, "Google Login Failed", Toast.LENGTH_LONG).show()
+                    }
+                }
+            } else {
+                isRecording = false
+                Toast.makeText(context, "Google Login Result failed!", Toast.LENGTH_LONG).show()
+                Log.d("GOOGLE LOGIN", result.resultCode.toString())
+            }
+        }
     val requestPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
         onResult = { isGranted ->
             if (isGranted) {
+                onSOSClicked()
+                isRecording = true
 //                context.registerReceiver(sosReceiver,filter)
 //                SMSManager.sendSOSMessage(
 //                    "SOS, I am in danger. I am currently located at $currLocation",
@@ -124,23 +198,16 @@ fun HomeScreen(
     val locationPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
-        when {
-            permissions.getOrDefault(Manifest.permission.ACCESS_FINE_LOCATION, false) -> {
-                isPermitted = true
-//                requestPermissionLauncher.launch(Manifest.permission.SEND_SMS)
-//                smsPermissionState.launchPermissionRequest()
-            }
-
-            permissions.getOrDefault(Manifest.permission.ACCESS_COARSE_LOCATION, false) -> {
-                // Only approximate location access granted.
-                isPermitted = true
-            }
-
-
+        val areGranted =
+            if (permissions.isEmpty()) locationPermissionState.allPermissionsGranted else permissions.values.reduce { acc, next -> acc && next }
+        if (areGranted) {
+            isPermitted = true
+        } else {
+            // Show dialog
         }
+
+
     }
-
-
 
 
     val safetyList = listOf<SafetyInsightItem>(
@@ -157,6 +224,20 @@ fun HomeScreen(
         )
 
     )
+
+    if (videoRecordService != null) {
+        videoRecordService.getVideoFile = { videoUri ->
+
+            videoFilePath = videoUri
+
+
+            startForResult.launch(GoogleDriveHelper.getGoogleSignInClient(context).signInIntent)
+
+
+        }
+
+    }
+
     Column(
         modifier = modifier.padding(horizontal = 24.dp),
 
@@ -172,20 +253,23 @@ fun HomeScreen(
                 context,
                 Manifest.permission.ACCESS_FINE_LOCATION
             ) -> {
+
                 CurrentLocationField {
                     currLocation = it
                 }
             }
 
+
             else -> {
                 // You can directly ask for the permission.
                 // The registered ActivityResultCallback gets the result of this request.
-                SideEffect {
+                LaunchedEffect(Unit) {
                     locationPermissionLauncher.launch(
                         arrayOf(
                             Manifest.permission.ACCESS_FINE_LOCATION,
                             Manifest.permission.ACCESS_COARSE_LOCATION,
-                        )
+
+                            )
                     )
                 }
             }
@@ -243,8 +327,65 @@ fun HomeScreen(
 
 
     }
+    if (isRecording) {
+        RecordingVideoOverlay()
+    }
 }
 
+fun uploadVideoToDrive(
+    scope: CoroutineScope, context:
+    Context, videoFilePath: String, onCompletedUpload: (String) -> Unit
+) {
+    var videoLink: String? = null
+    scope.launch {
+        val gFolder = File()
+        // Set file name and MIME
+        gFolder.name = "Koseemani Videos"
+        gFolder.mimeType = "application/vnd.google-apps.folder"
+        val driveService = GoogleDriveHelper.getDriveBuilder(context)
+
+        val filePair =
+            GoogleDriveHelper.checkIfFileExists(gFolder.name, gFolder.mimeType, driveService)
+
+        val fileId: String =
+            if (filePair.first) filePair.second else driveService.Files().create(gFolder)
+                .setFields("id").execute().id
+
+        val metadata = File()
+        metadata.name = "${System.currentTimeMillis()}"
+        metadata.parents = Collections.singletonList(fileId)
+        metadata.permissions = listOf(
+
+        )
+
+        val filePath = java.io.File(videoFilePath)
+
+        val mediaContent = FileContent("video/mp4", filePath)
+        try {
+
+            videoLink =
+                driveService.Files().create(metadata, mediaContent).setFields("id,webViewLink")
+                    .execute().webViewLink
+
+
+
+            withContext(Dispatchers.Main.immediate) {
+                Toast.makeText(context, "Sending alert to contacts", Toast.LENGTH_LONG).show()
+            }
+        } catch (e: IOException) {
+            Log.e("UPLOAD ERROR", e.message!!)
+            withContext(Dispatchers.Main.immediate) {
+                Toast.makeText(context, "Sending alerts to contacts Failed", Toast.LENGTH_LONG)
+                    .show()
+            }
+        } finally {
+
+            onCompletedUpload(videoLink ?: "")
+        }
+
+
+    }
+}
 
 @Composable
 fun NameHeadline(modifier: Modifier = Modifier, userName: String) {
@@ -493,6 +634,33 @@ fun snackbarImpl(
 @OptIn(ExperimentalPermissionsApi::class)
 fun checkLocationPermission(locationPermissionState: MultiplePermissionsState) {
     locationPermissionState.launchMultiplePermissionRequest()
+}
+
+@Composable
+fun RecordingVideoOverlay(modifier: Modifier = Modifier) {
+    Surface(
+        color = Color.Black, modifier = modifier
+
+            .fillMaxSize()
+            .alpha(0.9f)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Image(
+                painter = painterResource(id = R.drawable.left_wifi_vector),
+                contentDescription = "left signal",
+            )
+            Image(
+                painter = painterResource(id = R.drawable.sos_button_activated),
+                contentDescription = "button"
+            )
+            Image(
+                painter = painterResource(id = R.drawable.right_wifi_vector),
+                contentDescription = "right signal",
+            )
+        }
+
+
+    }
 }
 
 @OptIn(ExperimentalPermissionsApi::class)

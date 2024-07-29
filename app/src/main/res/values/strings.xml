@@ -1,3 +1,6 @@
 <resources>
     <string name="app_name">Koseemani</string>
+    <string name="channel_name">Foreground notifications channel</string>
+    <string name="channel_description">Channel for notifying about foreground services</string>
+    <string name="CLIENT_ID">337465849965-ccrl61sngmcspuqf06qif7mls5dppst1.apps.googleusercontent.com</string>
 </resources>
