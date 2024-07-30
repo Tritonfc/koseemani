@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
@@ -57,6 +58,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidViewBinding
 import androidx.core.content.ContextCompat
 import androidx.navigation.NavController
@@ -72,6 +74,7 @@ import com.example.koseemani.navigation.Home
 import com.example.koseemani.navigation.Settings
 import com.example.koseemani.service.VideoRecordService
 import com.example.koseemani.ui.home.HomeScreen
+import com.example.koseemani.ui.settings.SettingsScreen
 import com.example.koseemani.ui.theme.KoseemaniTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -317,9 +320,7 @@ fun KoseemaniApp(
                         }
                     }
                     composable<Settings> {
-                        Box(contentAlignment = Alignment.Center) {
-                            Text("Settings")
-                        }
+                        SettingsScreen(modifier = Modifier.padding(top = 16.dp))
                     }
 
                 }
@@ -399,7 +400,7 @@ fun BottomNavigationBar(
                     selectedTextColor = MaterialTheme.colorScheme.primary,
                     indicatorColor = MaterialTheme.colorScheme.surface,
                     unselectedIconColor = MaterialTheme.colorScheme.outline,
-                    unselectedTextColor = MaterialTheme.colorScheme.outline
+                    unselectedTextColor = MaterialTheme.colorScheme.outline,
 
 
                 )

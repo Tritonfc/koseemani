@@ -35,7 +35,7 @@ object NotificationsHelper {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK
         }
       return  NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(R.mipmap.ic_launcher)
+            .setSmallIcon(R.drawable.user_shield)
             .setContentTitle("Hi Fisayo")
             .setContentText("App is  recording a video")
             .setPriority(NotificationCompat.PRIORITY_HIGH)
