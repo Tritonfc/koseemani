@@ -2,12 +2,16 @@ package com.example.koseemani
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
 import android.hardware.Camera
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
 import android.view.SurfaceHolder
@@ -66,6 +70,7 @@ import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.example.koseemani.broadcast.SOSBroadcastReceiver
 import com.example.koseemani.databinding.ActivityCameraPreviewBinding
 
 import com.example.koseemani.navigation.Contacts
@@ -82,6 +87,7 @@ import kotlinx.coroutines.cancel
 
 class MainActivity : ComponentActivity() {
     private lateinit var mService: VideoRecordService
+    private lateinit var broadCastReceiver: BroadcastReceiver
 
 
     private var mBound by mutableStateOf(false)
@@ -112,7 +118,7 @@ class MainActivity : ComponentActivity() {
             val binder = service as VideoRecordService.LocalBinder
             mService = binder.getService()
             mBound = true
-            mService.stopService ={
+            mService.stopService = {
                 mService.stopForegroundService()
                 stopService(Intent(this@MainActivity, VideoRecordService::class.java))
 //                unbindService(this)
@@ -148,6 +154,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
 //        mService = VideoRecordService()
+        broadCastReceiver = SOSBroadcastReceiver {
+//            bindSurface()
+        }
         checkAndRequestLocationPermissions(
             this, permissions, true, permissionsLauncher
         )
@@ -161,9 +170,19 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             KoseemaniApp(
-                onSosClick = ::bindSurface, videoRecordService =  if(mBound) mService else null
-            )
+                onSosClick = ::startService, receiverListener = { listen ->
+                    if (listen) {
+                        registerReceiver(
+                            broadCastReceiver,
+                            IntentFilter("android.media.VOLUME_CHANGED_ACTION")
+                        )
+                    } else {
+                        unregisterReceiver(broadCastReceiver)
 
+                    }
+
+                }, videoRecordService = if (mBound) mService else null
+            )
 
 
         }
@@ -174,78 +193,54 @@ class MainActivity : ComponentActivity() {
 //        }
 
 
-
     }
 
     override fun onResume() {
         super.onResume()
 //tryToBindToServiceIfRunning()
 
-        }
+    }
 
 
     private fun startService() {
-        tryToBindToServiceIfRunning()
-        startForegroundService(Intent(this, VideoRecordService::class.java))
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (android.provider.Settings.canDrawOverlays(this)) {
+                tryToBindToServiceIfRunning()
+                startForegroundService(Intent(this, VideoRecordService::class.java))
+            } else {
+                checkDrawOverlayPermission(this)
+            }
+        } else {
+            tryToBindToServiceIfRunning()
+            startForegroundService(Intent(this, VideoRecordService::class.java))
+        }
+
 
         // bind to the service to update UI
-
     }
 
-    private fun bindSurface() {
-
-
-        val linearLayout = LinearLayout(this)
-        linearLayout.layoutParams = LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.FILL_PARENT, ViewGroup.LayoutParams.FILL_PARENT
-        )
-        val surfaceViewPrag = SurfaceView(this)
-        surfaceViewPrag.layoutParams = LinearLayout.LayoutParams(1, 1)
-        linearLayout.addView(surfaceViewPrag)
-        addContentView(
-            linearLayout, LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.FILL_PARENT, ViewGroup.LayoutParams.FILL_PARENT
+    private fun checkDrawOverlayPermission(context: Context) {
+        if (!android.provider.Settings.canDrawOverlays(context)) {
+            val intent = Intent(
+                android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                Uri.parse("package:${context.packageName}")
             )
-        )
-
-        surfaceView = surfaceViewPrag
-
-        surfaceHolder = surfaceView?.holder
-        surfaceHolder?.setType(SurfaceHolder.SURFACE_TYPE_PUSH_BUFFERS);
-//           surfaceViewPrag.holder.addCallback(SurfaceCallBack())
-        surfaceHolder?.addCallback(SurfaceCallBack())
-
+            startActivityForResult(intent, REQUEST_CODE_OVERLAY_PERMISSION)
+        }
     }
 
 
     private fun tryToBindToServiceIfRunning() {
         Intent(this, VideoRecordService::class.java).also { intent ->
-            bindService(intent, connection,0)
+            bindService(intent, connection, 0)
         }
     }
 
-    inner class SurfaceCallBack : SurfaceHolder.Callback {
-        override fun surfaceCreated(holder: SurfaceHolder) {
-            camera = Camera.open(0)
-            startService()
-        }
-
-        override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
-
-        }
-
-        override fun surfaceDestroyed(holder: SurfaceHolder) {
-//            camera?.release()
-            mService.mServiceCamera?.release()
-
-        }
-
-    }
 
     private fun checkAndRequestLocationPermissions(
         context: Context,
         permissions: Array<String>,
-        atLaunch:Boolean,
+        atLaunch: Boolean,
         launcher: ActivityResultLauncher<Array<String>>
     ) {
         if (permissions.all {
@@ -264,20 +259,19 @@ class MainActivity : ComponentActivity() {
 
 
     companion object {
-         var camera: Camera? = null
-         var surfaceHolder: SurfaceHolder? = null
 
-        @SuppressLint("StaticFieldLeak")
-         var surfaceView: SurfaceView? = null
+        private const val REQUEST_CODE_OVERLAY_PERMISSION = 1234
+
     }
-}
 
+}
 
 @SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun KoseemaniApp(
     onSosClick: () -> Unit,
+     receiverListener:(Boolean)->Unit,
     videoRecordService: VideoRecordService? = null,
 
 ) {
@@ -320,7 +314,9 @@ fun KoseemaniApp(
                         }
                     }
                     composable<Settings> {
-                        SettingsScreen(modifier = Modifier.padding(top = 16.dp))
+                        SettingsScreen(modifier = Modifier.padding(top = 16.dp)){receiverBroadcast->
+                            receiverListener(receiverBroadcast)
+                        }
                     }
 
                 }

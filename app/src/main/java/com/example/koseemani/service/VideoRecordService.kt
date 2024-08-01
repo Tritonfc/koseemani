@@ -1,8 +1,10 @@
 package com.example.koseemani.service
 
 import android.app.Service
+import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.graphics.PixelFormat
 import android.hardware.Camera
 import android.hardware.Camera.Size
 import android.media.MediaRecorder
@@ -14,6 +16,9 @@ import android.os.IBinder
 import android.util.Log
 import android.view.SurfaceHolder
 import android.view.SurfaceView
+import android.view.ViewGroup
+import android.view.WindowManager
+import android.widget.LinearLayout
 import android.widget.Toast
 import androidx.core.app.ServiceCompat
 import com.example.koseemani.MainActivity
@@ -39,8 +44,8 @@ class VideoRecordService : Service() {
     var isFromSleepMode = true
 
 
-    private var mSurfaceView: SurfaceView? = null
-    private var mSurfaceHolder: SurfaceHolder? = null
+    private lateinit var mSurfaceView: SurfaceView
+    private lateinit var mSurfaceHolder: SurfaceHolder
     var mServiceCamera: Camera? = null
     private var mRecordingStatus = false
     private var mMediaRecorder: MediaRecorder? = null
@@ -61,33 +66,40 @@ class VideoRecordService : Service() {
         fun getService(): VideoRecordService = this@VideoRecordService
     }
 
+    inner class SurfaceCallBack : SurfaceHolder.Callback {
+        override fun surfaceCreated(holder: SurfaceHolder) {
+//            mServiceCamera = Camera.open(0)
+            startAsForegroundService()
+            performServiceTasks()
+
+        }
+
+        override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
+
+        }
+
+        override fun surfaceDestroyed(holder: SurfaceHolder) {
+//            camera?.release()
+            mServiceCamera?.release()
+
+        }
+
+    }
+
     override fun onCreate() {
 
         mRecordingStatus = false
-        mServiceCamera = MainActivity.camera
-        mSurfaceView = MainActivity.surfaceView
-        mSurfaceHolder = MainActivity.surfaceHolder
+        bindSurface()
 
 
-//        Log.e(TAG, "ts_: $format")
-////        videoSavePathInDevice = Environment.getExternalStorageDirectory().getAbsolutePath() + "/" + format + "videoRecording.mp4";
-        //        videoSavePathInDevice = Environment.getExternalStorageDirectory().getAbsolutePath() + "/" + format + "videoRecording.mp4";
+
         videoSavePathInDevice = getFilename()
 
         super.onCreate()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (MainActivity.camera != null) {
 
-            mServiceCamera = MainActivity.camera
-            mSurfaceView = MainActivity.surfaceView
-            mSurfaceHolder = MainActivity.surfaceHolder
-            startAsForegroundService()
-            performServiceTasks()
-
-
-        }
 
         return START_NOT_STICKY
     }
@@ -126,7 +138,7 @@ class VideoRecordService : Service() {
     }
 
     suspend fun startRecording() {
-        try {
+//        try {
             withContext(Dispatchers.Main.immediate) {
                 Toast.makeText(baseContext, "Recording Started", Toast.LENGTH_SHORT).show()
             }
@@ -135,29 +147,41 @@ class VideoRecordService : Service() {
 //            mServiceCamera = Camera.open(Camera.CameraInfo.CAMERA_FACING_FRONT)
             //mServiceCamera = camera;
 
-            try {
-                val p = mServiceCamera?.getParameters()
-                val listPreviewSize: List<Camera.Size> = p?.supportedPreviewSizes ?: emptyList()
-                val previewSize: Camera.Size = listPreviewSize[0]
-                p?.setPreviewSize(previewSize.width, previewSize.height)
-                mServiceCamera?.setParameters(p)
-            } catch (e: RuntimeException) {
-                return
-            }
+//            try {
+//                val p = mServiceCamera?.getParameters()
+//                val listPreviewSize: List<Camera.Size> = p?.supportedPreviewSizes ?: emptyList()
+//                val previewSize: Camera.Size = listPreviewSize[0]
+//                p?.setPreviewSize(1280, 720)
+//                mServiceCamera?.setParameters(p)
+//            } catch (e: RuntimeException) {
+//                Log.e(TAG, Objects.requireNonNull(e.message!!))
+//                return
+//            }
 
-            try {
-                mServiceCamera?.setPreviewDisplay(mSurfaceHolder)
-                mServiceCamera?.startPreview()
-            } catch (e: IOException) {
-                Log.e(TAG, Objects.requireNonNull(e.message!!))
-                e.printStackTrace()
-            }
-            try {
-                mServiceCamera?.unlock()
-            } catch (e: RuntimeException) {
-                return
-            }
+//            try {
+//                mServiceCamera?.setPreviewDisplay(mSurfaceHolder)
+//                mServiceCamera?.startPreview()
+//            } catch (e: IOException) {
+//                Log.e(TAG, Objects.requireNonNull(e.message!!))
+//                e.printStackTrace()
+//            }
 
+//            try {
+//                mServiceCamera?.unlock()
+//            } catch (e: RuntimeException) {
+//                Log.e(TAG, Objects.requireNonNull(e.message!!))
+//                return
+//            }
+        mServiceCamera?.apply {
+            val p = parameters
+            val listPreviewSize: List<Camera.Size> = p.supportedPreviewSizes
+            val previewSize: Camera.Size = listPreviewSize[0]
+            p.setPreviewSize(previewSize.width, previewSize.height)
+            parameters = p
+            setPreviewDisplay(mSurfaceHolder)
+            startPreview()
+            unlock()
+        }
             mMediaRecorder = MediaRecorder()
             mMediaRecorder?.setCamera(mServiceCamera)
             mMediaRecorder?.setAudioSource(MediaRecorder.AudioSource.MIC)
@@ -168,16 +192,16 @@ class VideoRecordService : Service() {
             mMediaRecorder?.setOutputFile(videoSavePathInDevice)
 //            mMediaRecorder?.setVideoFrameRate(16)
             mMediaRecorder?.setVideoEncodingBitRate(3000000)
-            mMediaRecorder?.setPreviewDisplay(mSurfaceHolder!!.surface)
+            mMediaRecorder?.setPreviewDisplay(mSurfaceHolder.surface)
             mMediaRecorder?.prepare()
             mMediaRecorder?.start()
             mRecordingStatus = true
-        } catch (e: IllegalStateException) {
-            e.printStackTrace()
-        } catch (e: IOException) {
-            Log.d(TAG, e.message!!)
-            e.printStackTrace()
-        }
+//        } catch (e: IllegalStateException) {
+//            e.printStackTrace()
+//        } catch (e: IOException) {
+//            Log.d(TAG, e.message!!)
+//            e.printStackTrace()
+//        }
     }
 
     suspend fun stopRecording() {
@@ -210,7 +234,44 @@ class VideoRecordService : Service() {
         }
     }
 
+    private fun bindSurface() {
 
+        mServiceCamera = Camera.open(0)
+//        val linearLayout = LinearLayout(this)
+//        linearLayout.layoutParams = LinearLayout.LayoutParams(
+//            ViewGroup.LayoutParams.FILL_PARENT, ViewGroup.LayoutParams.FILL_PARENT
+//        )
+        val surfaceViewPrag = SurfaceView(this)
+//        surfaceViewPrag.layoutParams = LinearLayout.LayoutParams(1, 1)
+//        linearLayout.addView(surfaceViewPrag)
+
+
+        mSurfaceView = surfaceViewPrag
+
+        mSurfaceHolder = mSurfaceView.holder
+        mSurfaceHolder.setType(SurfaceHolder.SURFACE_TYPE_PUSH_BUFFERS);
+//           surfaceViewPrag.holder.addCallback(SurfaceCallBack())
+        mSurfaceHolder.addCallback(SurfaceCallBack())
+    
+
+
+        val layoutParams = WindowManager.LayoutParams(
+            1, 1,
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY;
+            } else {
+                 WindowManager.LayoutParams.TYPE_PHONE;
+            },
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+            PixelFormat.TRANSLUCENT
+        )
+
+        val windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+        windowManager.addView(mSurfaceView, layoutParams)
+
+
+
+    }
 
     private fun getFilename(): String {
 

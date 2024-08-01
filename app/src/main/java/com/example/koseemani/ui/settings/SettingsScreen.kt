@@ -29,7 +29,7 @@ import com.example.koseemani.ui.reusable.KoseeToolBar
 
 
 @Composable
-fun SettingsScreen(modifier: Modifier = Modifier) {
+fun SettingsScreen(modifier: Modifier = Modifier, onSwitchClicked: (Boolean) -> Unit) {
     var enableVolumeListener by remember { mutableStateOf(false) }
     val settingsList = listOf(
         SettingItem(title = "Profile Settings", iconType = SettingIconType.Arrow, subTitle = null),
@@ -51,6 +51,7 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
                 Column {
                     SettingItemView(settingItem = settingItem, onSwitchClicked = {
                         enableVolumeListener = it
+                        onSwitchClicked(it)
                     }, navigateToPage = null)
                     Divider(color = Color.LightGray)
                 }
@@ -70,15 +71,21 @@ fun SettingItemView(
     onSwitchClicked: (Boolean) -> Unit,
     navigateToPage: (() -> Unit)?
 ) {
-    val titleStyle = MaterialTheme.typography.titleMedium
+    val titleStyle = MaterialTheme.typography.titleMedium.copy(
+        color = if (settingItem.title == "Logout") MaterialTheme.colorScheme.error else Color.Black,
+        fontWeight = FontWeight.Bold
+    )
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 32.dp),
+            .padding(top = 64.dp),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         if (settingItem.subTitle.isNullOrEmpty()) {
-            Text(settingItem.title, style = titleStyle)
+            Text(
+                settingItem.title,
+                style = titleStyle
+            )
         } else {
             Column {
                 Text(text = settingItem.title, style = titleStyle)

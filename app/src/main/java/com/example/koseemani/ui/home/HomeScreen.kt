@@ -155,11 +155,11 @@ fun HomeScreen(
                                 videoLink
 
                             )
-                            SMSManager.sendSOSMessage(
-                                messages = messagesPart,
-                                emergencyContacts = testContacts,
-
-                                )
+//                            SMSManager.sendSOSMessage(
+//                                messages = messagesPart,
+//                                emergencyContacts = testContacts,
+//
+//                                )
 
 
 //            videoRecordService.stopForegroundService()

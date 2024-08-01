@@ -33,7 +33,7 @@ val Typography = Typography(
         fontSize = 14.sp,
         lineHeight = 17.sp,
         letterSpacing = 0.5.sp,
-        color = Color.Black
+
 
 
         ),
@@ -56,7 +56,7 @@ val Typography = Typography(
         lineHeight = 15.sp,
 
         letterSpacing = 0.5.sp,
-        color = Color.Black
+
     ),
 
     titleSmall = TextStyle(
