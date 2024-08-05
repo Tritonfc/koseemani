@@ -84,6 +84,7 @@ class VideoRecordService : Service() {
         override fun surfaceDestroyed(holder: SurfaceHolder) {
 //            camera?.release()
             mServiceCamera?.release()
+            mServiceCamera = null
 
         }
 
@@ -125,14 +126,9 @@ class VideoRecordService : Service() {
         coroutineScope.launch {
 
             startRecording()
-
-
-
-
             delay(10000)
 
             stopRecording()
-
 
             getVideoFile?.invoke(videoSavePathInDevice)
             getVideoFileForService?.invoke(videoSavePathInDevice)
@@ -248,8 +244,8 @@ class VideoRecordService : Service() {
 
             mServiceCamera?.stopPreview();
             mMediaRecorder?.release()
-            mServiceCamera?.release()
-            mServiceCamera = null
+//            mServiceCamera?.release()
+
         }
     }
 

@@ -1,6 +1,7 @@
 package com.example.koseemani.ui.settings
 
 import android.app.Activity
+import android.content.Context
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -20,9 +21,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -32,15 +35,22 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.koseemani.data.remote.GoogleDriveHelper
+import com.example.koseemani.datastore.getVolumeEnabled
+import com.example.koseemani.datastore.setVolumeEnabled
+import com.example.koseemani.datastore.settingsDataStore
 import com.example.koseemani.ui.home.uploadVideoToDrive
 import com.example.koseemani.ui.reusable.KoseeToolBar
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount
 import com.google.android.gms.tasks.Task
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 
 @Composable
 fun SettingsScreen(modifier: Modifier = Modifier, onSwitchClicked: (Boolean) -> Unit) {
     var enableVolumeListener by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope { Dispatchers.Default }
     val settingsList = listOf(
         SettingItem(title = "Profile Settings", iconType = SettingIconType.Arrow, subTitle = null),
         SettingItem(
@@ -64,6 +74,7 @@ fun SettingsScreen(modifier: Modifier = Modifier, onSwitchClicked: (Boolean) -> 
                         GoogleDriveHelper.getSignedInFromAccount(intent)
 
                     if (task.isSuccessful) {
+                        saveVolumeListenPref(context, true, scope)
                         onSwitchClicked(enableVolumeListener)
 
                     }
@@ -78,16 +89,24 @@ fun SettingsScreen(modifier: Modifier = Modifier, onSwitchClicked: (Boolean) -> 
             }
         }
 
+    LaunchedEffect(Unit) {
+        getVolumeEnabled(context).collect {
+            enableVolumeListener = it
+        }
+    }
+
     Column(modifier = modifier.padding(horizontal = 24.dp)) {
         KoseeToolBar(title = "Settings")
         Column {
             settingsList.forEach { settingItem ->
                 Column {
-                    SettingItemView(settingItem = settingItem, onSwitchClicked = {enable->
-                        if(enable){
+                    SettingItemView(settingItem = settingItem, onSwitchClicked = { enable ->
+                        if (enable) {
                             startForResult.launch(GoogleDriveHelper.getGoogleSignInClient(context).signInIntent)
-                        }else{
+                        } else {
                             onSwitchClicked(enable)
+                            saveVolumeListenPref(context, enable, scope)
+
                         }
                         enableVolumeListener = enable
 
@@ -103,6 +122,13 @@ fun SettingsScreen(modifier: Modifier = Modifier, onSwitchClicked: (Boolean) -> 
 
 }
 
+fun saveVolumeListenPref(context: Context, volumeEnabled: Boolean, coroutineScope: CoroutineScope) {
+    coroutineScope.launch {
+        setVolumeEnabled(context, volumeEnabled)
+    }
+}
+
+
 @Composable
 fun SettingItemView(
     modifier: Modifier = Modifier,
@@ -115,15 +141,14 @@ fun SettingItemView(
         fontWeight = FontWeight.Bold
     )
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .padding(top = 64.dp),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         if (settingItem.subTitle.isNullOrEmpty()) {
             Text(
-                settingItem.title,
-                style = titleStyle
+                settingItem.title, style = titleStyle
             )
         } else {
             Column {
@@ -153,9 +178,7 @@ fun SettingItemView(
 
 @Composable
 fun getIconType(
-    modifier: Modifier = Modifier,
-    iconType: SettingIconType,
-    onSwitchClicked: (Boolean) -> Unit?
+    modifier: Modifier = Modifier, iconType: SettingIconType, onSwitchClicked: (Boolean) -> Unit?
 ) {
     when (iconType) {
         SettingIconType.Arrow -> {
@@ -168,11 +191,9 @@ fun getIconType(
 
         is SettingIconType.SwitchItem -> {
             Switch(
-                checked = iconType.isChecked,
-                onCheckedChange = {
+                checked = iconType.isChecked, onCheckedChange = {
                     onSwitchClicked(it)
-                },
-                colors = SwitchDefaults.colors(
+                }, colors = SwitchDefaults.colors(
                     checkedThumbColor = MaterialTheme.colorScheme.primary,
                     checkedTrackColor = MaterialTheme.colorScheme.primaryContainer,
                     uncheckedThumbColor = MaterialTheme.colorScheme.secondary,
@@ -195,9 +216,9 @@ data class SettingItem(
     )
 
 sealed class SettingIconType {
-    object Arrow : SettingIconType()
+    data object Arrow : SettingIconType()
     data class SwitchItem(val isChecked: Boolean) : SettingIconType()
 
-    object None : SettingIconType()
+    data object None : SettingIconType()
 }
 
