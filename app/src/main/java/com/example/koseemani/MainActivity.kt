@@ -77,6 +77,7 @@ import com.example.koseemani.navigation.Contacts
 import com.example.koseemani.navigation.History
 import com.example.koseemani.navigation.Home
 import com.example.koseemani.navigation.Settings
+import com.example.koseemani.service.SendSmsService
 import com.example.koseemani.service.VideoRecordService
 import com.example.koseemani.ui.home.HomeScreen
 import com.example.koseemani.ui.settings.SettingsScreen
@@ -87,7 +88,7 @@ import kotlinx.coroutines.cancel
 
 class MainActivity : ComponentActivity() {
     private lateinit var mService: VideoRecordService
-    private lateinit var broadCastReceiver: BroadcastReceiver
+   private lateinit var smsService: SendSmsService
 
 
     private var mBound by mutableStateOf(false)
@@ -153,10 +154,8 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-//        mService = VideoRecordService()
-        broadCastReceiver = SOSBroadcastReceiver {
-//            bindSurface()
-        }
+//        smsService = SendSmsService()
+
         checkAndRequestLocationPermissions(
             this, permissions, true, permissionsLauncher
         )
@@ -170,15 +169,12 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             KoseemaniApp(
-                onSosClick = ::startService, receiverListener = { listen ->
+                onSosClick = ::startVideoService, receiverListener = { listen ->
                     if (listen) {
-                        registerReceiver(
-                            broadCastReceiver,
-                            IntentFilter("android.media.VOLUME_CHANGED_ACTION")
-                        )
+                       startSmsService()
                     } else {
-                        unregisterReceiver(broadCastReceiver)
-
+//                        smsService.stopService()
+                        stopService(Intent(this@MainActivity, SendSmsService::class.java))
                     }
 
                 }, videoRecordService = if (mBound) mService else null
@@ -200,9 +196,11 @@ class MainActivity : ComponentActivity() {
 //tryToBindToServiceIfRunning()
 
     }
+private  fun startSmsService(){
+    startForegroundService(Intent(this, SendSmsService::class.java))
+}
 
-
-    private fun startService() {
+    private fun startVideoService() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             if (android.provider.Settings.canDrawOverlays(this)) {
                 tryToBindToServiceIfRunning()

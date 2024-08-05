@@ -19,10 +19,20 @@ import androidx.compose.ui.unit.dp
 
 @Composable
 fun KoseeToolBar(modifier: Modifier = Modifier, title: String) {
-    Row(modifier = modifier.padding(bottom = 16.dp), horizontalArrangement = Arrangement.Start, verticalAlignment = Alignment.CenterVertically) {
+    Row(
+        modifier = modifier.padding(bottom = 16.dp),
+        horizontalArrangement = Arrangement.Start,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
         Icon(imageVector = Icons.Filled.KeyboardArrowLeft, contentDescription = "Back button")
         Spacer(modifier = Modifier.width(8.dp))
-        Text(text = title, style = MaterialTheme.typography.labelMedium.copy(color = Color.Black, fontWeight = FontWeight.Bold))
+        Text(
+            text = title,
+            style = MaterialTheme.typography.labelMedium.copy(
+                color = Color.Black,
+                fontWeight = FontWeight.Bold
+            )
+        )
 
     }
 }

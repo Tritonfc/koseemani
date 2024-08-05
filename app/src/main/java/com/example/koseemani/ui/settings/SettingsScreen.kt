@@ -1,5 +1,10 @@
 package com.example.koseemani.ui.settings
 
+import android.app.Activity
+import android.util.Log
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.layout.Arrangement
@@ -20,12 +25,17 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.koseemani.data.remote.GoogleDriveHelper
+import com.example.koseemani.ui.home.uploadVideoToDrive
 import com.example.koseemani.ui.reusable.KoseeToolBar
+import com.google.android.gms.auth.api.signin.GoogleSignInAccount
+import com.google.android.gms.tasks.Task
 
 
 @Composable
@@ -44,14 +54,43 @@ fun SettingsScreen(modifier: Modifier = Modifier, onSwitchClicked: (Boolean) -> 
         SettingItem(title = "Support", iconType = SettingIconType.Arrow, subTitle = null),
         SettingItem(title = "Logout", iconType = SettingIconType.None, subTitle = null),
     )
+    val context = LocalContext.current
+    val startForResult =
+        rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            if (result.resultCode == Activity.RESULT_OK) {
+                val intent = result.data
+                if (result.data != null) {
+                    val task: Task<GoogleSignInAccount> =
+                        GoogleDriveHelper.getSignedInFromAccount(intent)
+
+                    if (task.isSuccessful) {
+                        onSwitchClicked(enableVolumeListener)
+
+                    }
+                } else {
+                    enableVolumeListener = false
+                    Toast.makeText(context, "Google Login failed!", Toast.LENGTH_LONG).show()
+                }
+            } else {
+                enableVolumeListener = false
+                Toast.makeText(context, "Google Login Result failed!", Toast.LENGTH_LONG).show()
+                Log.d("GOOGLE LOGIN", result.resultCode.toString())
+            }
+        }
+
     Column(modifier = modifier.padding(horizontal = 24.dp)) {
         KoseeToolBar(title = "Settings")
         Column {
             settingsList.forEach { settingItem ->
                 Column {
-                    SettingItemView(settingItem = settingItem, onSwitchClicked = {
-                        enableVolumeListener = it
-                        onSwitchClicked(it)
+                    SettingItemView(settingItem = settingItem, onSwitchClicked = {enable->
+                        if(enable){
+                            startForResult.launch(GoogleDriveHelper.getGoogleSignInClient(context).signInIntent)
+                        }else{
+                            onSwitchClicked(enable)
+                        }
+                        enableVolumeListener = enable
+
                     }, navigateToPage = null)
                     Divider(color = Color.LightGray)
                 }

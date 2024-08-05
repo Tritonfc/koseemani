@@ -43,6 +43,8 @@ class VideoRecordService : Service() {
     private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.Default)
     var isFromSleepMode = true
 
+    var startedBy = ""
+
 
     private lateinit var mSurfaceView: SurfaceView
     private lateinit var mSurfaceHolder: SurfaceHolder
@@ -57,6 +59,7 @@ class VideoRecordService : Service() {
     private val file_exts = arrayOf(VIDEO_RECORDER_FILE_EXT_MP4)
 
     var getVideoFile: ((String) -> Unit)? = null
+    var getVideoFileForService: ((String) -> Unit)? = null
     var stopService: (() -> Unit)? = null
     override fun onBind(intent: Intent?): IBinder {
         return binder
@@ -132,20 +135,22 @@ class VideoRecordService : Service() {
 
 
             getVideoFile?.invoke(videoSavePathInDevice)
+            getVideoFileForService?.invoke(videoSavePathInDevice)
             stopService?.invoke()
+//            stopForegroundService()
 
         }
     }
 
     suspend fun startRecording() {
 //        try {
-            withContext(Dispatchers.Main.immediate) {
-                Toast.makeText(baseContext, "Recording Started", Toast.LENGTH_SHORT).show()
-            }
+        withContext(Dispatchers.Main.immediate) {
+            Toast.makeText(baseContext, "Recording Started", Toast.LENGTH_SHORT).show()
+        }
 
 //            mServiceCamera = Camera.open(Camera.CameraInfo.CAMERA_FACING_BACK);
 //            mServiceCamera = Camera.open(Camera.CameraInfo.CAMERA_FACING_FRONT)
-            //mServiceCamera = camera;
+        //mServiceCamera = camera;
 
 //            try {
 //                val p = mServiceCamera?.getParameters()
@@ -182,20 +187,34 @@ class VideoRecordService : Service() {
             startPreview()
             unlock()
         }
-            mMediaRecorder = MediaRecorder()
-            mMediaRecorder?.setCamera(mServiceCamera)
-            mMediaRecorder?.setAudioSource(MediaRecorder.AudioSource.MIC)
-            mMediaRecorder?.setVideoSource(MediaRecorder.VideoSource.CAMERA)
-            mMediaRecorder?.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
-            mMediaRecorder?.setAudioEncoder(MediaRecorder.AudioEncoder.AMR_NB)
-            mMediaRecorder?.setVideoEncoder(MediaRecorder.VideoEncoder.H264)
-            mMediaRecorder?.setOutputFile(videoSavePathInDevice)
+        mMediaRecorder = MediaRecorder()
+        mMediaRecorder?.apply {
+            setCamera(mServiceCamera)
+            setAudioSource(MediaRecorder.AudioSource.MIC)
+            setVideoSource(MediaRecorder.VideoSource.CAMERA)
+            setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+            setAudioEncoder(MediaRecorder.AudioEncoder.AMR_NB)
+            setVideoEncoder(MediaRecorder.VideoEncoder.H264)
+            setOutputFile(videoSavePathInDevice)
 //            mMediaRecorder?.setVideoFrameRate(16)
-            mMediaRecorder?.setVideoEncodingBitRate(3000000)
-            mMediaRecorder?.setPreviewDisplay(mSurfaceHolder.surface)
-            mMediaRecorder?.prepare()
-            mMediaRecorder?.start()
-            mRecordingStatus = true
+            setVideoEncodingBitRate(3000000)
+            setPreviewDisplay(mSurfaceHolder.surface)
+            prepare()
+            start()
+        }
+//            mMediaRecorder?.setCamera(mServiceCamera)
+//            mMediaRecorder?.setAudioSource(MediaRecorder.AudioSource.MIC)
+//            mMediaRecorder?.setVideoSource(MediaRecorder.VideoSource.CAMERA)
+//            mMediaRecorder?.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+//            mMediaRecorder?.setAudioEncoder(MediaRecorder.AudioEncoder.AMR_NB)
+//            mMediaRecorder?.setVideoEncoder(MediaRecorder.VideoEncoder.H264)
+//            mMediaRecorder?.setOutputFile(videoSavePathInDevice)
+////            mMediaRecorder?.setVideoFrameRate(16)
+//            mMediaRecorder?.setVideoEncodingBitRate(3000000)
+//            mMediaRecorder?.setPreviewDisplay(mSurfaceHolder.surface)
+//            mMediaRecorder?.prepare()
+//            mMediaRecorder?.start()
+        mRecordingStatus = true
 //        } catch (e: IllegalStateException) {
 //            e.printStackTrace()
 //        } catch (e: IOException) {
@@ -227,9 +246,9 @@ class VideoRecordService : Service() {
             }
 
 
-            //mServiceCamera.stopPreview();
+            mServiceCamera?.stopPreview();
             mMediaRecorder?.release()
-//            mServiceCamera?.release()
+            mServiceCamera?.release()
             mServiceCamera = null
         }
     }
@@ -252,7 +271,6 @@ class VideoRecordService : Service() {
         mSurfaceHolder.setType(SurfaceHolder.SURFACE_TYPE_PUSH_BUFFERS);
 //           surfaceViewPrag.holder.addCallback(SurfaceCallBack())
         mSurfaceHolder.addCallback(SurfaceCallBack())
-    
 
 
         val layoutParams = WindowManager.LayoutParams(
@@ -260,7 +278,7 @@ class VideoRecordService : Service() {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY;
             } else {
-                 WindowManager.LayoutParams.TYPE_PHONE;
+                WindowManager.LayoutParams.TYPE_PHONE;
             },
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
             PixelFormat.TRANSLUCENT
@@ -268,7 +286,6 @@ class VideoRecordService : Service() {
 
         val windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         windowManager.addView(mSurfaceView, layoutParams)
-
 
 
     }
@@ -290,12 +307,16 @@ class VideoRecordService : Service() {
     private fun startAsForegroundService() {
         // create the notification channel
         NotificationsHelper.createNotificationChannel(this)
+        val intent = Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        }
+        val message = "App is  recording a video"
 
         // promote service to foreground service
         ServiceCompat.startForeground(
             this,
-            1,
-            NotificationsHelper.buildNotification(this),
+            2,
+            NotificationsHelper.buildNotification(this,message,intent),
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA
             } else {
