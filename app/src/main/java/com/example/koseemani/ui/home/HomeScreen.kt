@@ -155,14 +155,14 @@ fun HomeScreen(
                                 videoLink
 
                             )
-                            SMSManager.sendSOSMessage(
-                                messages = messagesPart,
-                                emergencyContacts = testContacts,
+//                            SMSManager.sendSOSMessage(
+//                                messages = messagesPart,
+//                                emergencyContacts = testContacts,
+//
+//                                )
 
-                                )
 
 
-//            videoRecordService.stopForegroundService()
 
                             isRecording = false
                         }
@@ -336,54 +336,10 @@ fun uploadVideoToDrive(
     scope: CoroutineScope, context:
     Context, videoFilePath: String, onCompletedUpload: (String) -> Unit
 ) {
-    var videoLink: String? = null
-    scope.launch {
-        val gFolder = File()
-        // Set file name and MIME
-        gFolder.name = "Koseemani Videos"
-        gFolder.mimeType = "application/vnd.google-apps.folder"
-        val driveService = GoogleDriveHelper.getDriveBuilder(context)
-
-        val filePair =
-            GoogleDriveHelper.checkIfFileExists(gFolder.name, gFolder.mimeType, driveService)
-
-        val fileId: String =
-            if (filePair.first) filePair.second else driveService.Files().create(gFolder)
-                .setFields("id").execute().id
-
-        val metadata = File()
-        metadata.name = "${System.currentTimeMillis()}"
-        metadata.parents = Collections.singletonList(fileId)
-        metadata.permissions = listOf(
-
-        )
-
-        val filePath = java.io.File(videoFilePath)
-
-        val mediaContent = FileContent("video/mp4", filePath)
-        try {
-
-            videoLink =
-                driveService.Files().create(metadata, mediaContent).setFields("id,webViewLink")
-                    .execute().webViewLink
-
-
-
-            withContext(Dispatchers.Main.immediate) {
-                Toast.makeText(context, "Sending alert to contacts", Toast.LENGTH_LONG).show()
-            }
-        } catch (e: IOException) {
-            Log.e("UPLOAD ERROR", e.message!!)
-            withContext(Dispatchers.Main.immediate) {
-                Toast.makeText(context, "Sending alerts to contacts Failed", Toast.LENGTH_LONG)
-                    .show()
-            }
-        } finally {
-
-            onCompletedUpload(videoLink ?: "")
+    scope.launch(Dispatchers.IO) {
+        GoogleDriveHelper.uploadVideoToDrive(context,videoFilePath){
+            onCompletedUpload(it)
         }
-
-
     }
 }
 
@@ -416,34 +372,27 @@ fun NameHeadline(modifier: Modifier = Modifier, userName: String) {
 
 @Composable
 fun InstructionText(modifier: Modifier = Modifier) {
+    val spanStyle = SpanStyle(
+        fontWeight = FontWeight.Bold, color = Color.Black, fontSize = 18.sp
+    )
     Text(buildAnnotatedString {
         withStyle(
-            style = SpanStyle(
-                fontWeight = FontWeight.W600, color = Color.Black, fontSize = 18.sp
-            )
+            style = spanStyle
         ) {
             append("Press the ")
         }
         withStyle(
-            style = SpanStyle(
-                fontWeight = FontWeight.W600,
-                color = MaterialTheme.colorScheme.primary,
-                fontSize = 18.sp
-            )
+            style = spanStyle.copy(color = MaterialTheme.colorScheme.primary)
         ) {
             append("Button \n")
         }
         withStyle(
-            style = SpanStyle(
-                fontWeight = FontWeight.W600, color = Color.Black, fontSize = 18.sp
-            )
+            style = spanStyle
         ) {
             append("to alert your \n")
         }
         withStyle(
-            style = SpanStyle(
-                fontWeight = FontWeight.W600, color = Color.Black, fontSize = 18.sp
-            )
+            style = spanStyle
         ) {
             append("contacts")
         }

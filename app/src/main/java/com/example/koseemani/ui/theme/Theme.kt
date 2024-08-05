@@ -27,8 +27,12 @@ private val LightColorScheme = lightColorScheme(
     secondary = SecondaryBlue,
     tertiary = TertiaryBlue,
     background = Color(0xFFFFFBFE),
+    error = Color(0xFFFF0000),
     surface = Color(0xFFFFFBFE),
-    outline = Color(0xFFA3A2A2)
+    outline = Color(0xFFA3A2A2),
+    primaryContainer = SwitchTrackColor,
+    secondaryContainer = Color.White
+
 
     /* Other default colors to override
 

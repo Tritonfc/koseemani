@@ -95,6 +95,9 @@ dependencies {
         exclude(group = "org.apache.httpcomponents",module = "guava-jdk5")
     }
 
+    //Datastore
+    implementation("androidx.datastore:datastore-preferences:1.1.1")
+
     implementation ("com.google.api-client:google-api-client:1.30.5"){
         exclude(group = "org.apache.httpcomponents",module = "guava-jdk5")
     }

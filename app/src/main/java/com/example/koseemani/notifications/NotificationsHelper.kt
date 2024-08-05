@@ -30,17 +30,17 @@ object NotificationsHelper {
         }
     }
 
-    fun buildNotification(context:Context) : Notification {
+    fun buildNotification(context:Context,notifMesssage:String,pendingIntent:Intent) : Notification {
         val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK
         }
       return  NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(R.mipmap.ic_launcher)
+            .setSmallIcon(R.drawable.user_shield)
             .setContentTitle("Hi Fisayo")
-            .setContentText("App is  recording a video")
+            .setContentText(notifMesssage)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
-            .setContentIntent(intent.let { notificationIntent ->
+            .setContentIntent(pendingIntent.let { notificationIntent ->
                 PendingIntent.getActivity(
                     context,
                     0,

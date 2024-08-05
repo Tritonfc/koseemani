@@ -2,12 +2,16 @@ package com.example.koseemani
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
 import android.hardware.Camera
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
 import android.view.SurfaceHolder
@@ -25,6 +29,7 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material.icons.Icons
@@ -57,6 +62,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidViewBinding
 import androidx.core.content.ContextCompat
 import androidx.navigation.NavController
@@ -64,14 +70,17 @@ import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.example.koseemani.broadcast.SOSBroadcastReceiver
 import com.example.koseemani.databinding.ActivityCameraPreviewBinding
 
 import com.example.koseemani.navigation.Contacts
 import com.example.koseemani.navigation.History
 import com.example.koseemani.navigation.Home
 import com.example.koseemani.navigation.Settings
+import com.example.koseemani.service.SendSmsService
 import com.example.koseemani.service.VideoRecordService
 import com.example.koseemani.ui.home.HomeScreen
+import com.example.koseemani.ui.settings.SettingsScreen
 import com.example.koseemani.ui.theme.KoseemaniTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -79,6 +88,7 @@ import kotlinx.coroutines.cancel
 
 class MainActivity : ComponentActivity() {
     private lateinit var mService: VideoRecordService
+   private lateinit var smsService: SendSmsService
 
 
     private var mBound by mutableStateOf(false)
@@ -109,7 +119,7 @@ class MainActivity : ComponentActivity() {
             val binder = service as VideoRecordService.LocalBinder
             mService = binder.getService()
             mBound = true
-            mService.stopService ={
+            mService.stopService = {
                 mService.stopForegroundService()
                 stopService(Intent(this@MainActivity, VideoRecordService::class.java))
 //                unbindService(this)
@@ -144,7 +154,8 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-//        mService = VideoRecordService()
+//        smsService = SendSmsService()
+
         checkAndRequestLocationPermissions(
             this, permissions, true, permissionsLauncher
         )
@@ -158,9 +169,16 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             KoseemaniApp(
-                onSosClick = ::bindSurface, videoRecordService =  if(mBound) mService else null
-            )
+                onSosClick = ::startVideoService, receiverListener = { listen ->
+                    if (listen) {
+                       startSmsService()
+                    } else {
+//                        smsService.stopService()
+                        stopService(Intent(this@MainActivity, SendSmsService::class.java))
+                    }
 
+                }, videoRecordService = if (mBound) mService else null
+            )
 
 
         }
@@ -171,78 +189,56 @@ class MainActivity : ComponentActivity() {
 //        }
 
 
-
     }
 
     override fun onResume() {
         super.onResume()
 //tryToBindToServiceIfRunning()
 
+    }
+private  fun startSmsService(){
+    startForegroundService(Intent(this, SendSmsService::class.java))
+}
+
+    private fun startVideoService() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (android.provider.Settings.canDrawOverlays(this)) {
+                tryToBindToServiceIfRunning()
+                startForegroundService(Intent(this, VideoRecordService::class.java))
+            } else {
+                checkDrawOverlayPermission(this)
+            }
+        } else {
+            tryToBindToServiceIfRunning()
+            startForegroundService(Intent(this, VideoRecordService::class.java))
         }
 
 
-    private fun startService() {
-        tryToBindToServiceIfRunning()
-        startForegroundService(Intent(this, VideoRecordService::class.java))
-
         // bind to the service to update UI
-
     }
 
-    private fun bindSurface() {
-
-
-        val linearLayout = LinearLayout(this)
-        linearLayout.layoutParams = LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.FILL_PARENT, ViewGroup.LayoutParams.FILL_PARENT
-        )
-        val surfaceViewPrag = SurfaceView(this)
-        surfaceViewPrag.layoutParams = LinearLayout.LayoutParams(1, 1)
-        linearLayout.addView(surfaceViewPrag)
-        addContentView(
-            linearLayout, LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.FILL_PARENT, ViewGroup.LayoutParams.FILL_PARENT
+    private fun checkDrawOverlayPermission(context: Context) {
+        if (!android.provider.Settings.canDrawOverlays(context)) {
+            val intent = Intent(
+                android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                Uri.parse("package:${context.packageName}")
             )
-        )
-
-        surfaceView = surfaceViewPrag
-
-        surfaceHolder = surfaceView?.holder
-        surfaceHolder?.setType(SurfaceHolder.SURFACE_TYPE_PUSH_BUFFERS);
-//           surfaceViewPrag.holder.addCallback(SurfaceCallBack())
-        surfaceHolder?.addCallback(SurfaceCallBack())
-
+            startActivityForResult(intent, REQUEST_CODE_OVERLAY_PERMISSION)
+        }
     }
 
 
     private fun tryToBindToServiceIfRunning() {
         Intent(this, VideoRecordService::class.java).also { intent ->
-            bindService(intent, connection,0)
+            bindService(intent, connection, 0)
         }
     }
 
-    inner class SurfaceCallBack : SurfaceHolder.Callback {
-        override fun surfaceCreated(holder: SurfaceHolder) {
-            camera = Camera.open(0)
-            startService()
-        }
-
-        override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
-
-        }
-
-        override fun surfaceDestroyed(holder: SurfaceHolder) {
-//            camera?.release()
-            mService.mServiceCamera?.release()
-
-        }
-
-    }
 
     private fun checkAndRequestLocationPermissions(
         context: Context,
         permissions: Array<String>,
-        atLaunch:Boolean,
+        atLaunch: Boolean,
         launcher: ActivityResultLauncher<Array<String>>
     ) {
         if (permissions.all {
@@ -261,20 +257,19 @@ class MainActivity : ComponentActivity() {
 
 
     companion object {
-         var camera: Camera? = null
-         var surfaceHolder: SurfaceHolder? = null
 
-        @SuppressLint("StaticFieldLeak")
-         var surfaceView: SurfaceView? = null
+        private const val REQUEST_CODE_OVERLAY_PERMISSION = 1234
+
     }
-}
 
+}
 
 @SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun KoseemaniApp(
     onSosClick: () -> Unit,
+     receiverListener:(Boolean)->Unit,
     videoRecordService: VideoRecordService? = null,
 
 ) {
@@ -317,8 +312,8 @@ fun KoseemaniApp(
                         }
                     }
                     composable<Settings> {
-                        Box(contentAlignment = Alignment.Center) {
-                            Text("Settings")
+                        SettingsScreen(modifier = Modifier.padding(top = 16.dp)){receiverBroadcast->
+                            receiverListener(receiverBroadcast)
                         }
                     }
 
@@ -399,7 +394,7 @@ fun BottomNavigationBar(
                     selectedTextColor = MaterialTheme.colorScheme.primary,
                     indicatorColor = MaterialTheme.colorScheme.surface,
                     unselectedIconColor = MaterialTheme.colorScheme.outline,
-                    unselectedTextColor = MaterialTheme.colorScheme.outline
+                    unselectedTextColor = MaterialTheme.colorScheme.outline,
 
 
                 )
