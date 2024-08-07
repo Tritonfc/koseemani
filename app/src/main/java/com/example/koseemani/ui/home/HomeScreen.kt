@@ -77,6 +77,7 @@ import com.example.koseemani.di.KoseeViewmodelProvider
 import com.example.koseemani.service.VideoRecordService
 import com.example.koseemani.ui.contacts.ContactsViewModel
 import com.example.koseemani.utils.SMSManager
+import com.example.koseemani.utils.toNumberStringList
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.MultiplePermissionsState
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
@@ -140,11 +141,8 @@ fun HomeScreen(
 
                     if (task.isSuccessful) {
                         uploadVideoToDrive(scope, context, videoFilePath) { videoLink ->
-                            val contacts = contactsUiState.contacts.map {contact->
-                                contact.phoneNumber.filterNot {char->
-                                    char.isWhitespace()
-                                }
-                            }.toList()
+                            val contacts = contactsUiState.contacts.toNumberStringList()
+
                             val firstMessagePart =
                                 "SOS,I am in danger and located at: $currLocation."
                             val secondMessagePart = "Here's a clip of me:"

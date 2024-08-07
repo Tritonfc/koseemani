@@ -15,12 +15,22 @@ import android.os.Build
 import android.os.IBinder
 import android.os.Looper
 import androidx.core.app.ServiceCompat
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.koseemani.MainActivity
 import com.example.koseemani.broadcast.SOSBroadcastReceiver
+import com.example.koseemani.data.KoseemaniRepository
+import com.example.koseemani.data.local.Contact
+import com.example.koseemani.data.local.ContactsRepository
 import com.example.koseemani.data.remote.GoogleDriveHelper
+import com.example.koseemani.di.AppContainer
+import com.example.koseemani.di.KoseeAppContainer
+import com.example.koseemani.di.KoseeViewmodelProvider
 import com.example.koseemani.notifications.NotificationsHelper
+import com.example.koseemani.ui.contacts.ContactsViewModel
 import com.example.koseemani.utils.SMSManager
 import com.example.koseemani.utils.testContacts
+import com.example.koseemani.utils.toNumberStringList
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
@@ -39,9 +49,11 @@ class SendSmsService : Service() {
     private lateinit var broadCastReceiver: BroadcastReceiver
     private lateinit var videoRecordService: VideoRecordService
     private lateinit var fusedLocationClient: FusedLocationProviderClient
+    private  lateinit var contactsRepository: KoseemaniRepository
     private val _locationFlow = MutableStateFlow<Location?>(null)
     private lateinit var locationCallback: LocationCallback
     private var currLocation = ""
+    private var contactsList = listOf<Contact>()
     private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.Default)
 
     private val connection = object : ServiceConnection {
@@ -74,6 +86,9 @@ class SendSmsService : Service() {
     }
 
     override fun onCreate() {
+        contactsRepository = KoseeAppContainer(this).contactRepo
+
+
 
         broadCastReceiver = SOSBroadcastReceiver {
             Intent(this, VideoRecordService::class.java).also { intent ->
@@ -83,6 +98,8 @@ class SendSmsService : Service() {
         }
 
         setupLocationUpdates()
+
+
         super.onCreate()
     }
 
@@ -90,8 +107,11 @@ class SendSmsService : Service() {
         startAsForegroundService()
         startLocationUpdates()
         registerReceiver(broadCastReceiver, IntentFilter("android.media.VOLUME_CHANGED_ACTION"))
+        updateContacts()
+
         coroutineScope.launch {
             updateLocation()
+
         }
         return START_STICKY
     }
@@ -145,9 +165,19 @@ class SendSmsService : Service() {
             }
         }
     }
+private  fun updateContacts(){
+    coroutineScope.launch {
+        contactsRepository.fetchAllContacts().collect{contacts->
+            contactsList = contacts
+        }
+    }
 
+}
 
     private suspend fun uploadVideoAndSendSMS(filePath: String) {
+
+
+
 
         GoogleDriveHelper.uploadVideoToDrive(this@SendSmsService, filePath) { videoLink ->
             val firstMessagePart =
@@ -161,7 +191,7 @@ class SendSmsService : Service() {
             )
             SMSManager.sendSOSMessage(
                 messages = messagesPart,
-                emergencyContacts = testContacts,
+                emergencyContacts = contactsList.toNumberStringList(),
                 )
 
         }
