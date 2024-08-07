@@ -79,6 +79,7 @@ import com.example.koseemani.navigation.Home
 import com.example.koseemani.navigation.Settings
 import com.example.koseemani.service.SendSmsService
 import com.example.koseemani.service.VideoRecordService
+import com.example.koseemani.ui.contacts.ContactsScreen
 import com.example.koseemani.ui.home.HomeScreen
 import com.example.koseemani.ui.settings.SettingsScreen
 import com.example.koseemani.ui.theme.KoseemaniTheme
@@ -88,7 +89,7 @@ import kotlinx.coroutines.cancel
 
 class MainActivity : ComponentActivity() {
     private lateinit var mService: VideoRecordService
-   private lateinit var smsService: SendSmsService
+    private lateinit var smsService: SendSmsService
 
 
     private var mBound by mutableStateOf(false)
@@ -171,7 +172,7 @@ class MainActivity : ComponentActivity() {
             KoseemaniApp(
                 onSosClick = ::startVideoService, receiverListener = { listen ->
                     if (listen) {
-                       startSmsService()
+                        startSmsService()
                     } else {
 //                        smsService.stopService()
                         stopService(Intent(this@MainActivity, SendSmsService::class.java))
@@ -196,9 +197,10 @@ class MainActivity : ComponentActivity() {
 //tryToBindToServiceIfRunning()
 
     }
-private  fun startSmsService(){
-    startForegroundService(Intent(this, SendSmsService::class.java))
-}
+
+    private fun startSmsService() {
+        startForegroundService(Intent(this, SendSmsService::class.java))
+    }
 
     private fun startVideoService() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -269,10 +271,10 @@ private  fun startSmsService(){
 @Composable
 fun KoseemaniApp(
     onSosClick: () -> Unit,
-     receiverListener:(Boolean)->Unit,
+    receiverListener: (Boolean) -> Unit,
     videoRecordService: VideoRecordService? = null,
 
-) {
+    ) {
     KoseemaniTheme {
         // A surface container using the 'background' color from the theme
         Surface(
@@ -307,12 +309,19 @@ fun KoseemaniApp(
                         }
                     }
                     composable<Contacts> {
-                        Box(contentAlignment = Alignment.Center) {
-                            Text("Contacts")
-                        }
+                        ContactsScreen(
+                            modifier = Modifier
+                                .padding(
+                                    top = 16.dp,
+                                    start = 16.dp,
+                                    end = 16.dp
+                                )
+                                .fillMaxWidth()
+                                .fillMaxHeight()
+                        )
                     }
                     composable<Settings> {
-                        SettingsScreen(modifier = Modifier.padding(top = 16.dp)){receiverBroadcast->
+                        SettingsScreen(modifier = Modifier.padding(top = 16.dp)) { receiverBroadcast ->
                             receiverListener(receiverBroadcast)
                         }
                     }
@@ -397,7 +406,7 @@ fun BottomNavigationBar(
                     unselectedTextColor = MaterialTheme.colorScheme.outline,
 
 
-                )
+                    )
             )
         }
 

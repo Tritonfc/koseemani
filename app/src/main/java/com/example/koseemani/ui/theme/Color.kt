@@ -9,3 +9,7 @@ val SecondaryBlue = Color(0xFFCAD8ED)
 val TertiaryBlue = Color(0xFFE8EEF7)
 
 val SwitchTrackColor = Color(0x60BBCDE7)
+
+val borderColor = Color(0x601D3353)
+
+val lightGrey = Color(0x60000000)

@@ -4,7 +4,6 @@ import android.Manifest
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Context
-import android.content.Intent
 import android.content.pm.PackageManager
 import android.location.Address
 import android.location.Geocoder
@@ -12,7 +11,6 @@ import android.location.LocationManager
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.ActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresPermission
 import androidx.compose.foundation.Image
@@ -71,30 +69,25 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.koseemani.R
 import com.example.koseemani.data.remote.GoogleDriveHelper
+import com.example.koseemani.di.KoseeViewmodelProvider
 import com.example.koseemani.service.VideoRecordService
+import com.example.koseemani.ui.contacts.ContactsViewModel
 import com.example.koseemani.utils.SMSManager
-import com.example.koseemani.utils.returnBool
-import com.example.koseemani.utils.testContacts
+import com.example.koseemani.utils.toNumberStringList
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.MultiplePermissionsState
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import com.google.accompanist.permissions.rememberPermissionState
-import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.tasks.Task
-import com.google.api.client.http.FileContent
-import com.google.api.services.drive.model.File
-import com.google.api.services.drive.model.Permission
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import java.io.IOException
-import java.util.Collections
 import java.util.Locale
 
 
@@ -105,8 +98,10 @@ fun HomeScreen(
     modifier: Modifier = Modifier,
     snackbarHostState: SnackbarHostState,
     videoRecordService: VideoRecordService?,
+    contactsViewModel: ContactsViewModel = viewModel(factory = KoseeViewmodelProvider.viewModelFactory),
     onSOSClicked: () -> Unit
 ) {
+    val contactsUiState by contactsViewModel.homeUiState.collectAsStateWithLifecycle()
     val scope = rememberCoroutineScope { Dispatchers.Default }
 //    val sosReceiver = SOSBroadcastReceiver()
 //    val filter = IntentFilter("android.media.VOLUME_CHANGED_ACTION")
@@ -146,6 +141,8 @@ fun HomeScreen(
 
                     if (task.isSuccessful) {
                         uploadVideoToDrive(scope, context, videoFilePath) { videoLink ->
+                            val contacts = contactsUiState.contacts.toNumberStringList()
+
                             val firstMessagePart =
                                 "SOS,I am in danger and located at: $currLocation."
                             val secondMessagePart = "Here's a clip of me:"
@@ -155,11 +152,11 @@ fun HomeScreen(
                                 videoLink
 
                             )
-//                            SMSManager.sendSOSMessage(
-//                                messages = messagesPart,
-//                                emergencyContacts = testContacts,
-//
-//                                )
+                            SMSManager.sendSOSMessage(
+                                messages = messagesPart,
+                                emergencyContacts = contacts,
+
+                                )
 
 
 
@@ -180,8 +177,14 @@ fun HomeScreen(
         contract = ActivityResultContracts.RequestPermission(),
         onResult = { isGranted ->
             if (isGranted) {
-                onSOSClicked()
-                isRecording = true
+                if(contactsUiState.contacts.isEmpty()){
+                    snackbarImpl("Please add an emergency contact",scope, snackbarHostState = snackbarHostState)
+
+                }else{
+                    onSOSClicked()
+                    isRecording = true
+                }
+
 //                context.registerReceiver(sosReceiver,filter)
 //                SMSManager.sendSOSMessage(
 //                    "SOS, I am in danger. I am currently located at $currLocation",
@@ -299,7 +302,7 @@ fun HomeScreen(
                         requestPermissionLauncher.launch(Manifest.permission.SEND_SMS)
                     } else {
                         handleLocationPermissions(locationPermissionState) {
-                            snackbarImpl(it, scope, snackbarHostState) {
+                            snackbarImpl(it, scope,"Request Permission", snackbarHostState,) {
                                 locationPermissionLauncher.launch(
                                     arrayOf(
                                         Manifest.permission.ACCESS_FINE_LOCATION,
@@ -360,6 +363,7 @@ fun NameHeadline(modifier: Modifier = Modifier, userName: String) {
                 painter = painterResource(id = R.drawable.sample_profile),
                 contentDescription = "My profile pic"
             )
+            Spacer(modifier = Modifier.width(8.dp))
 
             Icon(imageVector = Icons.Outlined.Notifications, contentDescription = null)
 
@@ -389,13 +393,9 @@ fun InstructionText(modifier: Modifier = Modifier) {
         withStyle(
             style = spanStyle
         ) {
-            append("to alert your \n")
+            append("to alert your \ncontacts")
         }
-        withStyle(
-            style = spanStyle
-        ) {
-            append("contacts")
-        }
+
     })
 }
 
@@ -448,7 +448,7 @@ fun CurrentLocationField(
         readOnly = true,
         leadingIcon = {
             Icon(
-                painter = painterResource(id = R.drawable.location_pic),
+                painter = painterResource(id = R.drawable.ic_location_icon),
                 contentDescription = "Map Icon"
             )
         },
@@ -519,7 +519,7 @@ fun SafetyInsightCard(modifier: Modifier = Modifier, safetyItem: SafetyInsightIt
             contentScale = ContentScale.Crop
         )
         Spacer(modifier = Modifier.height(4.dp))
-        Row() {
+        Row(verticalAlignment = Alignment.CenterVertically) {
             Text(text = safetyItem.title, style = MaterialTheme.typography.titleMedium)
             Icon(imageVector = Icons.Outlined.ArrowForward, contentDescription = null)
         }
@@ -555,21 +555,25 @@ fun HomeScreenPreview() {
 fun snackbarImpl(
     message: String,
     scope: CoroutineScope,
+    actionLabel : String = "",
     snackbarHostState: SnackbarHostState,
 
-    onActionClicked: () -> Unit,
+    onActionClicked: (() -> Unit)? = null,
 ) {
 
     scope.launch {
         val result = snackbarHostState.showSnackbar(
             message = message,
-            actionLabel = "Request Permission",
+            actionLabel = actionLabel,
             duration = SnackbarDuration.Indefinite
         )
 
         when (result) {
             SnackbarResult.ActionPerformed -> {
-                onActionClicked()
+
+                if (onActionClicked != null) {
+                    onActionClicked()
+                }
 
             }
 
