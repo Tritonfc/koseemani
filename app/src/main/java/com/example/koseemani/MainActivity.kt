@@ -169,6 +169,7 @@ class MainActivity : ComponentActivity() {
         )
         super.onCreate(savedInstanceState)
         setContent {
+            var valueCh by remember { mutableStateOf(true) }
             KoseemaniApp(
                 onSosClick = ::startVideoService, receiverListener = { listen ->
                     if (listen) {
